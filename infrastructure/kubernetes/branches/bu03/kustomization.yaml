@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: bu03
+resources:
+  - namespace.yaml
+  - ../../base/worker
+  - ../../base/database
+configMapGenerator:
+  - name: worker-config
+    behavior: merge
+    literals:
+      - Bu__Id=BU03
+      - Bu__QueueName=jobs.bu03
+  - name: database-config
+    behavior: merge
+    literals:
+      - POSTGRES_DB=ida_bu03
+      - APP_DB_USER=bu03user

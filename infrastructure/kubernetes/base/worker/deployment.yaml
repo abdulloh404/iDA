@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bu-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: bu-worker
+  template:
+    metadata:
+      labels:
+        app: bu-worker
+    spec:
+      serviceAccountName: bu-worker
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ida/bu-worker:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secrets
+          env:
+            - name: BU_DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: database-config
+                  key: POSTGRES_DB
+            - name: BU_DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: database-config
+                  key: APP_DB_USER
+            - name: BU_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: worker-secrets
+                  key: Database__Password
+            - name: ConnectionStrings__Bu
+              value: 'Host=bu-db;Port=5432;Database=$(BU_DB_NAME);Username=$(BU_DB_USER);Password="$(BU_DB_PASSWORD)"'
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: temporary
+              mountPath: /tmp
+      volumes:
+        - name: temporary
+          emptyDir: {}

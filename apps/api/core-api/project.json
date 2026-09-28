@@ -1,0 +1,60 @@
+{
+  "name": "core-api",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "root": "apps/api/core-api",
+  "sourceRoot": "apps/api/core-api",
+  "projectType": "application",
+  "tags": ["type:backend", "scope:core"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/bin/Release/net9.0"],
+      "options": {
+        "command": "dotnet build iDA.Core.Api.csproj --configuration Release",
+        "cwd": "apps/api/core-api"
+      }
+    },
+    "dev": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "ASPNETCORE_URLS=\"http://localhost:${API_PORT:-3100}\" dotnet watch --non-interactive --project iDA.Core.Api.csproj run -- --no-launch-profile",
+        "cwd": "apps/api/core-api",
+        "env": {
+          "DOTNET_ENVIRONMENT": "Development",
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        }
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "dependsOn": ["build"],
+      "options": {
+        "command": "ASPNETCORE_URLS=\"http://localhost:${API_PORT:-3100}\" dotnet bin/Release/net9.0/iDA.Core.Api.dll",
+        "cwd": "apps/api/core-api",
+        "env": {
+          "DOTNET_ENVIRONMENT": "Production",
+          "ASPNETCORE_ENVIRONMENT": "Production"
+        }
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "dotnet run --project iDA.Core.Api.csproj -- --urls \"http://localhost:${API_PORT:-3100}\"",
+        "cwd": "apps/api/core-api"
+      }
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f apps/api/core-api/Dockerfile -t ida/core-api:dev .",
+        "cwd": "."
+      }
+    }
+  }
+}

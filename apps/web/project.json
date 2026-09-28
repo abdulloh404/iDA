@@ -1,0 +1,40 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/web/src",
+  "projectType": "application",
+  "tags": ["type:frontend", "scope:shared"],
+  "// targets": "to see all targets run: nx show project web --web",
+  "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "next dev --port \"${WEB_PORT:-3000}\"",
+        "cwd": "apps/web"
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "dependsOn": ["build"],
+      "options": {
+        "command": "node tools/start-web.mjs",
+        "cwd": ".",
+        "env": {
+          "NODE_ENV": "production",
+          "HOSTNAME": "127.0.0.1"
+        }
+      }
+    },
+    "docker-build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker build -f apps/web/Dockerfile -t ida/web:dev .",
+        "cwd": "."
+      }
+    }
+  }
+}

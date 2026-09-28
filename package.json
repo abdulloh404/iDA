@@ -1,0 +1,53 @@
+{
+  "name": "@ida/workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "dev:api": "nx run-many -t dev --projects=core-api,background-worker --parallel=2",
+    "dev:web": "nx run web:dev",
+    "dev:mobile": "nx run mobile:dev",
+    "dev:ios": "nx run mobile:dev-ios",
+    "start:api": "nx run-many -t start --projects=core-api,background-worker --parallel=2",
+    "start:web": "nx run web:start",
+    "start:mobile": "nx run mobile:start",
+    "start:ios": "nx run mobile:start-ios",
+    "build": "nx run-many -t build",
+    "build:api": "nx run-many -t build --projects=core-api,background-worker",
+    "build:web": "nx build web",
+    "build:mobile": "nx build mobile",
+    "build:ios": "nx run mobile:build-ios",
+    "docker:build": "nx run-many -t docker-build --projects=web,core-api,background-worker",
+    "kube:render": "nx run infrastructure:kube-render",
+    "kube:secrets": "nx run infrastructure:kube-secrets",
+    "kube:images": "nx run infrastructure:kube-images",
+    "kube:storage": "nx run infrastructure:kube-storage",
+    "kube:apply": "nx run infrastructure:kube-apply",
+    "kube:db-info": "nx run infrastructure:kube-db-info",
+    "kube:purge": "nx run infrastructure:kube-purge",
+    "graph": "nx graph"
+  },
+  "private": true,
+  "devDependencies": {
+    "@nx/js": "23.2.0",
+    "@nx/next": "^23.2.0",
+    "@swc-node/register": "1.11.1",
+    "@swc/cli": "~0.8.1",
+    "@swc/core": "1.15.8",
+    "@swc/helpers": "0.5.18",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "nx": "23.2.0",
+    "prettier": "^3.8.1",
+    "tslib": "^2.3.0",
+    "typescript": "~6.0.3"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "dependencies": {
+    "next": "~16.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}

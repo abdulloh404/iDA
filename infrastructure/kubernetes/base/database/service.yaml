@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bu-db
+spec:
+  clusterIP: None
+  selector:
+    app: bu-db
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432

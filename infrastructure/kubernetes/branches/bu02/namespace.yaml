@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bu02
+  labels:
+    ida.io/role: bu
+    ida.io/bu: BU02
