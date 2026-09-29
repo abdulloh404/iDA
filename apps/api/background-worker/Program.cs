@@ -6,7 +6,7 @@ builder.Configuration
     .AddEnvironmentVariables()
     .AddCommandLine(args);
 
-var options = BuWorkerOptions.Read(builder.Configuration, args);
+var options = BuWorkerOptions.Read(builder.Configuration, args, builder.Environment.IsDevelopment());
 builder.Services.AddSingleton(options);
 builder.Services.AddSingleton<BuDatabaseConnection>();
 builder.Services.AddSingleton<RabbitMqConnection>();

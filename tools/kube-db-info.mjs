@@ -48,14 +48,18 @@ function databaseServicePort(service) {
   return port.port;
 }
 
-export function databasePortForwards({ context = currentContext(), namespaces = configuredNamespaces() } = {}) {
+function portForwardEnvironment() {
   let values = {};
   try {
     values = parseEnv(readFileSync(new URL('../.env', import.meta.url), 'utf8'));
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
-  values = { ...values, ...process.env };
+  return { ...values, ...process.env };
+}
+
+export function databasePortForwards({ context = currentContext(), namespaces = configuredNamespaces() } = {}) {
+  const values = portForwardEnvironment();
   const basePort = Number(values.KUBE_DB_PORT_FORWARD_BASE_PORT ?? 5442);
   if (!Number.isInteger(basePort) || basePort < 1 || basePort > 65535) {
     throw new Error('KUBE_DB_PORT_FORWARD_BASE_PORT must be an integer from 1 to 65535.');
@@ -80,6 +84,26 @@ export function databasePortForwards({ context = currentContext(), namespaces = 
       remotePort: databaseServicePort(service),
     };
   });
+}
+
+export function queuePortForward({ context = currentContext(), namespaces = configuredNamespaces() } = {}) {
+  const core = namespaces.find(({ role }) => role === 'core');
+  if (!core) throw new Error('A Core namespace is required for the queue port-forward.');
+  const port = Number(portForwardEnvironment().KUBE_QUEUE_PORT_FORWARD_PORT ?? 5672);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('KUBE_QUEUE_PORT_FORWARD_PORT must be an integer from 1 to 65535.');
+  }
+  const service = getResource(context, core.name, 'service', 'queue');
+  const remotePort = service.spec?.ports?.find(({ name }) => name === 'amqp')?.port;
+  if (!remotePort) throw new Error(`Service ${core.name}/queue has no AMQP port.`);
+  return {
+    namespace: core.name,
+    scope: 'Queue',
+    service: 'queue',
+    address: '127.0.0.1',
+    port,
+    remotePort,
+  };
 }
 
 export function databasePortForwardDirectory(context) {
@@ -139,6 +163,22 @@ export function reportDatabasePortForwards({ context = currentContext(), forward
   return rows;
 }
 
+export function reportQueuePortForward({ context = currentContext(), forward = queuePortForward({ context }) } = {}) {
+  const pid = runningDatabasePortForward(context, forward);
+  const rows = [{
+    Namespace: forward.namespace,
+    Service: forward.service,
+    'Bind IP': forward.address,
+    Host: 'localhost',
+    'Forward Port': forward.port,
+    'AMQP Port': forward.remotePort,
+    'Port-forward status': pid ? 'Running (PID ' + pid + ')' : 'No managed process',
+  }];
+  console.log('RabbitMQ port-forward connection on this machine for Kubernetes context ' + context + ':');
+  console.table(rows);
+  return rows;
+}
+
 export function reportBuDatabaseConnections({ context = currentContext(), namespaces = configuredNamespaces() } = {}) {
 
   const rows = namespaces.map(({ name: namespace, role, bu }) => {
@@ -184,6 +224,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     const forwards = databasePortForwards({ context, namespaces });
     reportBuDatabaseConnections({ context, namespaces });
     reportDatabasePortForwards({ context, forwards });
+    reportQueuePortForward({ context, forward: queuePortForward({ context, namespaces }) });
   } catch (error) {
     console.error(`Cannot report Core and BU database connections: ${error.message}`);
     process.exitCode = 1;

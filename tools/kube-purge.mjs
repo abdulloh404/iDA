@@ -53,7 +53,7 @@ function ownedLocalVolume(volume) {
 function removeForwardState(stateDirectory, stateName, port) {
   rmSync(join(stateDirectory, stateName), { force: true });
   rmSync(join(stateDirectory, stateName.slice(0, -5) + '.log'), { force: true });
-  console.log(`Removed database port-forward state for port ${port}.`);
+  console.log(`Removed port-forward state for port ${port}.`);
 }
 
 function stopManagedPortForwards(context) {
@@ -98,11 +98,11 @@ function stopManagedPortForwards(context) {
     const isCore = namespace === 'core';
     const isBranch = /^bu[0-9]{2,}$/.test(namespace);
     const expectedService = isCore ? 'core-db-client' : 'bu-db-client';
+    const isDatabase = (isCore || isBranch) && address === '0.0.0.0' && service === expectedService;
+    const isQueue = isCore && address === '127.0.0.1' && service === 'queue';
     const expectedArgs = databasePortForwardArgs(context, forward);
     const isManaged = basename(command[0] ?? '') === 'kubectl'
-      && (isCore || isBranch)
-      && address === '0.0.0.0'
-      && service === expectedService
+      && (isDatabase || isQueue)
       && Number(pair?.[1]) === port
       && remotePort >= 1
       && remotePort <= 65535
@@ -115,7 +115,7 @@ function stopManagedPortForwards(context) {
       if (error.code !== 'ESRCH') throw error;
     }
     removeForwardState(stateDirectory, entry.name, port);
-    console.log(`Stopped managed database port-forward for ${namespace} (PID ${pid}).`);
+    console.log(`Stopped managed port-forward for ${namespace}/${service} (PID ${pid}).`);
   }
 
   rmSync(stateDirectory, { recursive: true, force: true });

@@ -6,8 +6,10 @@ import {
   databasePortForwardArgs,
   databasePortForwardDirectory,
   databasePortForwards,
+  queuePortForward,
   reportBuDatabaseConnections,
   reportDatabasePortForwards,
+  reportQueuePortForward,
   runningDatabasePortForward,
 } from './kube-db-info.mjs';
 import { configuredNamespaces } from './kube-namespaces.mjs';
@@ -104,7 +106,12 @@ try {
   }
 
   const namespaces = configuredNamespaces();
-  const forwards = databasePortForwards({ context, namespaces });
+  const databaseForwards = databasePortForwards({ context, namespaces });
+  const queueForward = queuePortForward({ context, namespaces });
+  const forwards = [...databaseForwards, queueForward];
+  if (new Set(forwards.map(({ port }) => port)).size !== forwards.length) {
+    throw new Error('Database and queue port-forward ports overlap. Check KUBE_DB_PORT_FORWARD_BASE_PORT and KUBE_QUEUE_PORT_FORWARD_PORT.');
+  }
   const stateDirectory = databasePortForwardDirectory(context);
   mkdirSync(stateDirectory, { recursive: true, mode: 0o700 });
   const results = await Promise.allSettled(forwards.map((forward) => startPortForward(context, stateDirectory, forward)));
@@ -114,13 +121,14 @@ try {
       process.exitCode = 1;
     }
   }
-  console.log('Database port-forward logs: ' + stateDirectory);
+  console.log('Database and queue port-forward logs: ' + stateDirectory);
 
   try {
     reportBuDatabaseConnections({ context, namespaces });
-    reportDatabasePortForwards({ context, forwards });
+    reportDatabasePortForwards({ context, forwards: databaseForwards });
+    reportQueuePortForward({ context, forward: queueForward });
   } catch (error) {
-    console.error(`Kubernetes manifests were applied, but the BU database connection report failed: ${error.message}`);
+    console.error(`Kubernetes manifests were applied, but the database/queue connection report failed: ${error.message}`);
     process.exitCode = 1;
   }
 } catch (error) {

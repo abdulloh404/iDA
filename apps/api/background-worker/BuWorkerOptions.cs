@@ -29,7 +29,7 @@ internal sealed class BuWorkerOptions
     public TimeSpan RetryInterval { get; }
     public ushort PrefetchCount { get; }
 
-    public static BuWorkerOptions Read(IConfiguration configuration, string[] args)
+    public static BuWorkerOptions Read(IConfiguration configuration, string[] args, bool isDevelopment)
     {
         var id = ReadBuId(configuration, args);
         var hospitalId = FirstValue(configuration["Bu:HospitalId"], configuration[$"{id}_HOSPITAL_ID"], id)!;
@@ -40,8 +40,11 @@ internal sealed class BuWorkerOptions
         if (!string.Equals(queueName, expectedQueueName, StringComparison.Ordinal))
             throw new InvalidOperationException("Bu:QueueName must match the selected Bu:Id.");
 
-        var databaseConnection = ReadDatabaseConnection(configuration, id);
-        var queueConnection = FirstValue(configuration["Queue:ConnectionString"], configuration[$"{id}_QUEUE_CONNECTION"]);
+        var databaseConnection = ReadDatabaseConnection(configuration, id, isDevelopment);
+        var explicitQueueConnection = configuration["Queue:ConnectionString"];
+        var queueConnection = string.IsNullOrWhiteSpace(explicitQueueConnection)
+            ? ReadFallbackQueueConnection(configuration, id)
+            : explicitQueueConnection;
         ValidateQueueConnection(queueConnection);
 
         var healthInterval = ReadInterval(configuration, "Worker:HealthIntervalSeconds", 30);
@@ -63,7 +66,8 @@ internal sealed class BuWorkerOptions
         return value;
     }
 
-    private static string ReadDatabaseConnection(IConfiguration configuration, string id)
+    private static string ReadDatabaseConnection(IConfiguration configuration, string id,
+        bool isDevelopment)
     {
         var configured = configuration.GetConnectionString("Bu");
         var password = FirstSecret(configuration["Database:Password"], configuration[$"{id}_DB_PASSWORD"], configuration["BU_DB_PASSWORD"]);
@@ -71,6 +75,11 @@ internal sealed class BuWorkerOptions
         {
             configured = configuration.GetConnectionString(id);
             password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["Database:Password"], configuration["BU_DB_PASSWORD"]);
+        }
+        if (string.IsNullOrWhiteSpace(configured) && isDevelopment)
+        {
+            configured = ReadApiLocalConnection(id);
+            password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["BU_DB_PASSWORD"], configuration["Database:Password"]);
         }
         if (string.IsNullOrWhiteSpace(configured))
         {
@@ -96,6 +105,39 @@ internal sealed class BuWorkerOptions
             throw new InvalidOperationException("The selected BU database requires a host, database, runtime user, and password.");
         builder.IncludeErrorDetail = false;
         return builder.ConnectionString;
+    }
+
+    private static string? ReadApiLocalConnection(string id)
+    {
+        var apiConfigPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+            "..", "..", "..", "..", "core-api", "api"));
+        if (!Directory.Exists(apiConfigPath)) return null;
+
+        var apiLocal = new ConfigurationBuilder().SetBasePath(apiConfigPath)
+            .AddJsonFile("appsettings.Local.json", optional: true)
+            .Build();
+        return apiLocal.GetConnectionString(id);
+    }
+
+    private static string? ReadFallbackQueueConnection(IConfiguration configuration, string id)
+    {
+        var connectionString = configuration[$"{id}_QUEUE_CONNECTION"];
+        if (string.IsNullOrWhiteSpace(connectionString)) return null;
+
+        var host = configuration["Queue:Host"]?.Trim();
+        if (string.IsNullOrWhiteSpace(host)) return connectionString;
+        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
+            throw new InvalidOperationException("Queue:Host must be a valid host name or IP address.");
+
+        var port = configuration.GetValue<int?>("Queue:Port")
+            ?? configuration.GetValue<int?>("KUBE_QUEUE_PORT_FORWARD_PORT")
+            ?? 5672;
+        if (port is < 1 or > 65535)
+            throw new InvalidOperationException("Queue:Port must be between 1 and 65535.");
+        if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)) return connectionString;
+
+        var builder = new UriBuilder(uri) { Host = host, Port = port };
+        return builder.Uri.AbsoluteUri;
     }
 
     private static void ValidateQueueConnection(string? connectionString)

@@ -142,11 +142,14 @@ API_PORT=3100
 Mobile ใช้ค่า default ของ Flutter; Background Worker ไม่มี HTTP port ของตนเอง
 Worker ใช้ URL ของ API ตาม `API_PORT` เว้นแต่กำหนด `Core__BaseUrl` ไว้เอง
 
-`dev:api` รัน Core API และ Worker พร้อมกันผ่าน `dotnet watch` ใน Development
-Worker ใช้ค่า BU01 จาก `appsettings.Development.json` เป็นค่าเริ่มต้นของ scaffold
+`dev:api` รัน Core API, BU Worker และ Ingest Worker พร้อมกันผ่าน `dotnet watch` ใน Development
+BU Worker ใช้ค่า BU01 จาก `appsettings.Development.json` เป็นค่าเริ่มต้น เปลี่ยนสาขาได้ด้วย `BU_ID`
+เมื่อไม่ได้กำหนด connection ของ worker เอง จะอ่านเฉพาะ `ConnectionStrings:<BU_ID>` จาก `apps/api/core-api/api/appsettings.Local.json` เพื่อใช้ DB endpoint เดียวกับ API
+RabbitMQ ใช้บัญชีและ vhost จาก `<BU_ID>_QUEUE_CONNECTION` โดยเปลี่ยนปลายทางสำหรับ Development เป็น `localhost` กับพอร์ต `KUBE_QUEUE_PORT_FORWARD_PORT` (ค่าเริ่มต้น `5672`) ส่วน `Queue:ConnectionString` ที่กำหนดโดยตรงจะใช้ตามค่านั้น
+รัน `npm run kube:apply` เพื่อเปิด DB/queue port-forward ก่อนเริ่ม `dev:api` และดูสถานะได้ด้วย `npm run kube:db-info`
 ค่าพอร์ตเริ่มต้น: API อยู่ที่ `http://localhost:3100`; Web อยู่ที่ `http://localhost:3000`
 
-`start:api` รันทั้งสอง process ใน Production หลัง build Release ผ่าน Nx และไม่ใช้ launch profile
+`start:api` รันทั้งสาม process ใน Production หลัง build Release ผ่าน Nx และไม่ใช้ launch profile
 ต้องกำหนด `Bu__Id` และ `Bu__QueueName` ให้ตรงกันก่อนรัน เพราะ Production ไม่โหลด BU01 จากไฟล์ Development
 ตัวอย่างสำหรับ BU01 บน Linux/macOS:
 
@@ -155,7 +158,7 @@ Bu__Id=BU01 Bu__QueueName=jobs.bu01 npm run start:api
 ```
 
 คำสั่ง API เริ่ม Worker เพียงหนึ่ง instance ตาม BU config ไม่ได้เริ่ม Workers ทั้ง 3 ตัว
-Worker ยังเป็น scaffold ที่รอเฉย ๆ ยังไม่รับ Queue หรือประมวลผลข้อมูลจริง
+BU Worker ตรวจการเชื่อม DB และการมีอยู่ของ queue โดยยังไม่รับข้อความหรือประมวลผลงานจริง
 `start:web` build ผ่าน Nx แล้วเตรียม static/public assets และใช้ standalone server ตาม config ปัจจุบัน
 
 คำสั่ง Mobile เลือกเฉพาะอุปกรณ์ Android ส่วนคำสั่ง iOS เลือกเฉพาะอุปกรณ์ iOS
@@ -214,7 +217,6 @@ npm run kube:apply
 ```
 
 คำสั่งนี้ render manifests โดยใช้ UID/GID ของผู้รันสำหรับ DB/Queue แล้วส่งให้ `kubectl apply -f -` เพื่อสร้าง/อัปเดต Core API, Web, Core DB และ RabbitMQ กลาง
-แล้วแสดงข้อมูลเชื่อมต่อฐานข้อมูลทุก BU จาก cluster โดยไม่รอให้ Pods พร้อมใช้งาน
 พร้อม namespace `bu01`–`bu03` ซึ่งแต่ละ BU มี:
 
 - Worker Deployment 1 replica ใช้ Worker image เดียวกันทั้ง 3 BU
@@ -222,6 +224,8 @@ npm run kube:apply
 - Service `bu-db` พอร์ต 5432 และ PVC `data-bu-db-0` ขนาด 10Gi แยกตาม namespace
 - Service `bu-db-client` แบบ ClusterIP สำหรับโปรแกรมเชื่อมฐานข้อมูล มี IP ของตนเองในแต่ละ namespace
 - NetworkPolicy อนุญาตเฉพาะ Worker ใน namespace เดียวกันเข้า DB ของ BU นั้น
+
+หลัง apply จะเริ่ม DB port-forward และ RabbitMQ port-forward เบื้องหลัง รอจนเริ่มรับ connection แล้วคืน terminal ให้ใช้ต่อ RabbitMQ bind ที่ `127.0.0.1` พอร์ต `5672` หรือค่าจาก `KUBE_QUEUE_PORT_FORWARD_PORT` ใน `.env` โดยอ่านพอร์ต AMQP ปลายทางจาก Service `queue` ทั้ง `kube:apply` และ `kube:db-info` จะแสดง host, port และ PID ของ forward ส่วน `kube:purge` จะหยุด forward ที่ระบบสร้างไว้ด้วย
 
 Worker ใช้ `Host=bu-db` ซึ่ง resolve ไปยัง DB ใน namespace ของตนเอง
 ชื่อ database/user อ่านจาก `database-config`; password อ่านจาก `worker-secrets.Database__Password`
@@ -307,7 +311,7 @@ RabbitMQ ใช้ vhost `ida` และ direct exchange `jobs` โดยเต�
   ใช้ username คนละชื่อระหว่าง Core/แต่ละ BU และ percent-encode อักขระพิเศษใน user/password
 
 NetworkPolicy อนุญาต Core API เข้า Core DB และอนุญาต Core API/BU Workers เข้า RabbitMQ
-ไม่มีการเปิด PostgreSQL, RabbitMQ หรือ management UI ออกภายนอก cluster
+`kube:apply` เปิด PostgreSQL ผ่าน port-forward บนทุก IPv4 interface และเปิด RabbitMQ ผ่าน loopback port-forward สำหรับ worker บนเครื่องเดียวกัน ส่วน management UI ไม่ได้เปิดไว้
 
 ### เตรียมก่อน deploy
 
