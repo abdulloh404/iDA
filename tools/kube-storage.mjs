@@ -21,11 +21,18 @@ function kubectl(context, args, input) {
   return run('kubectl', ['--context', context, '--request-timeout=15s', ...args], { input });
 }
 
-function getResource(context, kind, name, namespace) {
+function getResource(context, kind, name, namespace, waitForCreation = false) {
   const args = namespace ? ['-n', namespace] : [];
-  const output = kubectl(context, [...args, 'get', kind, name, '--ignore-not-found=true', '-o', 'json']);
-  if (!output) throw new Error(`${kind} ${namespace ? `${namespace}/` : ''}${name} is missing. Run npm run kube:apply first, then rerun npm run kube:storage after the PVCs exist.`);
-  return JSON.parse(output);
+  const deadline = Date.now() + (waitForCreation ? 60_000 : 0);
+  while (true) {
+    const output = kubectl(context, [...args, 'get', kind, name, '--ignore-not-found=true', '-o', 'json']);
+    if (output) {
+      const resource = JSON.parse(output);
+      if (!waitForCreation || kind !== 'pvc' || resource.status?.phase) return resource;
+    }
+    if (Date.now() >= deadline) throw new Error(`${kind} ${namespace ? `${namespace}/` : ''}${name} is missing or has no status after applying the manifests. Check StatefulSet events.`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
+  }
 }
 
 function storageRoot() {
@@ -115,12 +122,14 @@ function matchingVolume(existing, expected) {
     && JSON.stringify(spec.nodeAffinity) === JSON.stringify(desired.nodeAffinity);
 }
 
-try {
+export function prepareLocalStorage({ restoreExisting = false } = {}) {
   const context = run('kubectl', ['config', 'current-context']);
   if (!context) throw new Error('kubectl has no current context.');
   const root = storageRoot();
   directory(root);
   const node = localNode(context);
+  const applied = kubectl(context, ['apply', '-k', 'infrastructure/kubernetes']);
+  if (applied) console.log(applied);
   const existingVolumes = JSON.parse(kubectl(context, ['get', 'pv', '-o', 'json'])).items;
   const plans = [];
   const rows = [];
@@ -131,7 +140,7 @@ try {
     for (let ordinal = workload.spec.ordinals?.start ?? 0; ordinal < (workload.spec.ordinals?.start ?? 0) + (workload.spec.replicas ?? 1); ordinal++) {
       for (const template of workload.spec.volumeClaimTemplates ?? []) {
         const claimName = `${template.metadata.name}-${name}-${ordinal}`;
-        const claim = getResource(context, 'pvc', claimName, namespace);
+        const claim = getResource(context, 'pvc', claimName, namespace, true);
         if (claim.status?.phase === 'Bound') {
           rows.push({ Namespace: namespace, PVC: claimName, PV: claim.spec.volumeName, Status: 'Already Bound; unchanged' });
           continue;
@@ -151,17 +160,17 @@ try {
           throw new Error(`Another PV already uses ${path} or PVC ${namespace}/${claimName}; refusing to create overlapping storage.`);
         }
         const info = directory(path);
-        if (info && !existing) throw new Error(`Storage directory ${path} already exists without its matching PV. Review any existing data before reusing it.`);
+        if (info && !existing && !restoreExisting) throw new Error(`Storage directory ${path} already exists without its matching PV. Run npm run kube:restore-db to reuse the saved data.`);
         if (info && (info.uid !== security.runAsUser || info.gid !== security.runAsGroup || (info.mode & 0o700) !== 0o700)) throw new Error(`Existing directory ${path} has different ownership/permissions; it was not changed.`);
         if (!info && existing?.status?.phase === 'Bound') throw new Error(`Bound PV ${existing.metadata.name} has lost its directory ${path}; restore its data manually instead of creating empty storage.`);
         plans.push({ volume: expected, existing, path, info, uid: security.runAsUser, gid: security.runAsGroup });
-        rows.push({ Namespace: namespace, PVC: claimName, PV: expected.metadata.name, Capacity: expected.spec.capacity.storage, Path: path, Status: existing ? 'Existing PV; unchanged' : 'Create local PV' });
+        rows.push({ Namespace: namespace, PVC: claimName, PV: expected.metadata.name, Capacity: expected.spec.capacity.storage, Path: path, Status: existing ? 'Existing PV; unchanged' : info ? 'Restore saved storage' : 'Create local PV' });
       }
     }
   }
 
-  if (!rows.length) throw new Error('No StatefulSet PVCs are configured. Run npm run kube:apply first.');
-  console.log(`Preparing local storage on ${node.metadata.name} in context ${context}:`);
+  if (!rows.length) throw new Error('No StatefulSet PVCs are configured in the Kubernetes manifests.');
+  console.log(`${restoreExisting ? 'Restoring saved storage' : 'Preparing local storage'} on ${node.metadata.name} in context ${context}:`);
   console.table(rows);
   const parentPaths = [...new Set(plans.filter(({ info }) => !info).flatMap(({ path }) => [root, dirname(path)]))].filter((path) => !directory(path));
   if (parentPaths.length) run('sudo', ['install', '-d', '-m', '0755', '-o', '0', '-g', '0', '--', ...parentPaths], { inherit: true });
@@ -177,9 +186,17 @@ try {
   // PVC เดิมไม่มี StorageClass จึงจอง classless Local PV ด้วย claim UID โดยไม่แก้ PVC/StatefulSet หรือ default ของคลัสเตอร์
   const volumes = plans.filter(({ existing }) => !existing).map(({ volume }) => volume);
   if (volumes.length) console.log(kubectl(context, ['create', '-f', '-'], JSON.stringify({ apiVersion: 'v1', kind: 'List', items: volumes })));
-  console.log('Local storage prepared. No PVCs, existing PVs or data were deleted or replaced. Retain keeps local data after PVC deletion; retained PVs require manual review before reuse.');
-  console.log('Existing Pending Pods can now bind their storage and start automatically. Rerun npm run kube:db-info after the databases become ready.');
-} catch (error) {
-  console.error(`Local storage preparation failed: ${error.message} Some new directories/PVs may already exist; no cleanup or PVC deletion was attempted.`);
-  process.exitCode = 1;
+  console.log(restoreExisting
+    ? 'Saved storage restored by binding new PVs to the existing directories. Missing directories were prepared for new workloads. No existing data was deleted or replaced.'
+    : 'Local storage prepared. No PVCs, existing PVs or data were deleted or replaced. Retain keeps local data after PVC deletion; retained PVs require manual review before reuse.');
+  console.log('Existing Pending Pods can now bind their storage and start automatically. Run npm run kube:apply to open database port-forwards, then npm run kube:db-info.');
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  try {
+    prepareLocalStorage();
+  } catch (error) {
+    console.error(`Local storage preparation failed: ${error.message} Some Kubernetes resources or storage directories may already exist; no cleanup or PVC deletion was attempted.`);
+    process.exitCode = 1;
+  }
 }

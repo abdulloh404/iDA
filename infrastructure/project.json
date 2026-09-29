@@ -49,6 +49,15 @@
         "tty": true
       }
     },
+    "kube-restore-db": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node tools/kube-restore-db.mjs",
+        "cwd": ".",
+        "tty": true
+      }
+    },
     "kube-apply": {
       "executor": "nx:run-commands",
       "cache": false,
