@@ -108,7 +108,7 @@ public class DatabaseSeeder(
                 Id = id,
                 HospitalNameTh = id,
                 HospitalNameEn = id,
-                ShortName = endpoint.Code,
+                ShortName = endpoint.ConnectionKey,
             },
         };
 
@@ -436,7 +436,7 @@ public class DatabaseSeeder(
 
             if (unprotected.Count > 0)
                 throw new InvalidOperationException(
-                    $"Row-level security is missing in {branch.Code}: " +
+                    $"Row-level security is missing in {branch.ConnectionKey}: " +
                     string.Join(", ", unprotected));
         }
     }

@@ -59,7 +59,7 @@ public sealed class DatabaseProvisioner(IConfiguration config, DatabaseRegistry 
         command.Parameters.AddWithValue(endpoint.Username);
         await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
-            throw new InvalidOperationException($"Runtime role '{endpoint.Username}' does not exist for {endpoint.Code}.");
+            throw new InvalidOperationException($"Runtime role '{endpoint.Username}' does not exist for {endpoint.ConnectionKey}.");
         if (reader.GetBoolean(0) || reader.GetBoolean(1))
             throw new InvalidOperationException($"Runtime role '{endpoint.Username}' must not have SUPERUSER or BYPASSRLS.");
     }

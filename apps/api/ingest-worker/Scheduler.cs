@@ -23,7 +23,7 @@ internal static class Scheduler
             {
                 var branches = await registry.ListBranchesAsync(stop.Token);
                 var selected = branches.Where(x => hospitalFilter.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.Code, hospitalFilter, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.ConnectionKey, hospitalFilter, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(x.HospitalId, hospitalFilter, StringComparison.OrdinalIgnoreCase)).ToArray();
                 if (selected.Length == 0 && !hospitalFilter.Equals("all", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException($"BU branch not found: {hospitalFilter}.");
@@ -36,7 +36,7 @@ internal static class Scheduler
                     var hospital = endpoint.HospitalId;
                     if (string.IsNullOrWhiteSpace(hospital))
                     {
-                        Console.Error.WriteLine($"Ingest branch {endpoint.Code} has no hospital id.");
+                        Console.Error.WriteLine($"Ingest branch {endpoint.ConnectionKey} has no hospital id.");
                         return;
                     }
                     try
@@ -66,7 +66,7 @@ internal static class Scheduler
                         catch (Exception error)
                         {
                             Console.Error.WriteLine(
-                                $"Manual ingest branch {endpoint.Code} failed: {error.Message}");
+                                $"Manual ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
                         }
                         try
                         {
@@ -81,7 +81,7 @@ internal static class Scheduler
                         catch (Exception error)
                         {
                             Console.Error.WriteLine(
-                                $"Scheduled ingest branch {endpoint.Code} failed: {error.Message}");
+                                $"Scheduled ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
                         }
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -89,7 +89,7 @@ internal static class Scheduler
                     }
                     catch (Exception error)
                     {
-                        Console.Error.WriteLine($"Ingest branch {endpoint.Code} failed: {error.Message}");
+                        Console.Error.WriteLine($"Ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
                     }
                 });
             }

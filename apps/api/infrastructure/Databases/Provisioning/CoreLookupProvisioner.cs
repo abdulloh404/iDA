@@ -87,7 +87,7 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
             var localName = view.Name["lookup_".Length..];
             var relationKind = await RelationKindAsync(connection, transaction, core.SchemaName, localName, ct);
             if (relationKind is not null && relationKind != "f")
-                throw new InvalidOperationException($"{branch.Code}: {core.SchemaName}.{localName} must be a foreign table, but an incompatible relation already exists.");
+                throw new InvalidOperationException($"{branch.ConnectionKey}: {core.SchemaName}.{localName} must be a foreign table, but an incompatible relation already exists.");
             if (relationKind is null)
             {
                 var columns = string.Join(",", view.Columns.Select(column =>
@@ -392,7 +392,7 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
                 continue;
             }
             if (!string.Equals(type.Replace("\"", "", StringComparison.Ordinal), column.Type.Replace("\"", "", StringComparison.Ordinal), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"{branch.Code}: foreign table {schema}.{table} is incompatible at column {column.Name}.");
+                throw new InvalidOperationException($"{branch.ConnectionKey}: foreign table {schema}.{table} is incompatible at column {column.Name}.");
         }
     }
 

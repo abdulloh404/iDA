@@ -51,15 +51,15 @@ public sealed class DatabaseContexts(
     {
         if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
-                $"Database endpoint '{endpoint.Code}' is not a BU endpoint.");
+                $"Database endpoint '{endpoint.ConnectionKey}' is not a BU endpoint.");
 
-        if (_branches.TryGetValue(endpoint.Code, out var existing)) return existing;
+        if (_branches.TryGetValue(endpoint.ConnectionKey, out var existing)) return existing;
 
         var contextTenant = new FixedTenant(endpoint.HospitalId
             ?? throw new InvalidOperationException(
-                $"BU database endpoint '{endpoint.Code}' has no hospital id."));
+                $"BU database endpoint '{endpoint.ConnectionKey}' has no hospital id."));
         var context = CreateRuntimeContext(endpoint, registry.Core, contextTenant);
-        _branches.Add(endpoint.Code, context);
+        _branches.Add(endpoint.ConnectionKey, context);
         return context;
     }
 

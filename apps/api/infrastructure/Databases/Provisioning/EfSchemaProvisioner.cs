@@ -59,7 +59,7 @@ internal static class EfSchemaProvisioner
                     if (await RelationKindAsync(connection, transaction, endpoint.SchemaName, table.Name, ct) is { } kind)
                     {
                         if (kind != "r" && kind != "p")
-                            throw new InvalidOperationException($"{endpoint.Code}: {endpoint.SchemaName}.{table.Name} exists but is not a table.");
+                            throw new InvalidOperationException($"{endpoint.ConnectionKey}: {endpoint.SchemaName}.{table.Name} exists but is not a table.");
                         await ValidateTableAsync(connection, transaction, endpoint, table, ct);
                     }
                     else
@@ -86,7 +86,7 @@ internal static class EfSchemaProvisioner
                 case CreateTableOperation or CreateIndexOperation or AddForeignKeyOperation or CreateSequenceOperation or InsertDataOperation:
                     break;
                 default:
-                    throw new InvalidOperationException($"Unsupported non-additive database operation '{operation.GetType().Name}' for {endpoint.Code}.");
+                    throw new InvalidOperationException($"Unsupported non-additive database operation '{operation.GetType().Name}' for {endpoint.ConnectionKey}.");
             }
         }
 
@@ -94,7 +94,7 @@ internal static class EfSchemaProvisioner
         foreach (var command in generator.Generate(selected, model, MigrationsSqlGenerationOptions.Default))
         {
             if (command.TransactionSuppressed)
-                throw new InvalidOperationException($"Database operation for {endpoint.Code} cannot run inside the provisioning transaction.");
+                throw new InvalidOperationException($"Database operation for {endpoint.ConnectionKey} cannot run inside the provisioning transaction.");
             await ProvisioningSql.ExecuteAsync(connection, transaction, command.CommandText, ct);
         }
     }
@@ -183,11 +183,11 @@ internal static class EfSchemaProvisioner
         foreach (var expected in table.Columns.Where(column => column.Name != "xmin"))
         {
             if (!actual.TryGetValue(expected.Name, out var found))
-                throw new InvalidOperationException($"{endpoint.Code}: existing table {endpoint.SchemaName}.{table.Name} is missing column {expected.Name}.");
+                throw new InvalidOperationException($"{endpoint.ConnectionKey}: existing table {endpoint.SchemaName}.{table.Name} is missing column {expected.Name}.");
             if (expected.ColumnType is { Length: > 0 } type && !TypesMatch(type, found.Type))
-                throw new InvalidOperationException($"{endpoint.Code}: column {endpoint.SchemaName}.{table.Name}.{expected.Name} is {found.Type}, expected {type}.");
+                throw new InvalidOperationException($"{endpoint.ConnectionKey}: column {endpoint.SchemaName}.{table.Name}.{expected.Name} is {found.Type}, expected {type}.");
             if (found.Nullable != expected.IsNullable)
-                throw new InvalidOperationException($"{endpoint.Code}: column {endpoint.SchemaName}.{table.Name}.{expected.Name} nullability is incompatible.");
+                throw new InvalidOperationException($"{endpoint.ConnectionKey}: column {endpoint.SchemaName}.{table.Name}.{expected.Name} nullability is incompatible.");
         }
     }
 

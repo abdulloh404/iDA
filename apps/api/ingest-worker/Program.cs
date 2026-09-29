@@ -98,7 +98,7 @@ if (command == "serve")
 
 var branches = await registry.ListBranchesAsync();
 var hospitalId = branches.FirstOrDefault(x =>
-    string.Equals(x.Code, hospitalSelector, StringComparison.OrdinalIgnoreCase))?.HospitalId
+    string.Equals(x.ConnectionKey, hospitalSelector, StringComparison.OrdinalIgnoreCase))?.HospitalId
     ?? hospitalSelector;
 var endpoint = await registry.GetBranchAsync(hospitalId);
 if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase) ||
