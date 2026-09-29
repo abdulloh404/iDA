@@ -102,14 +102,11 @@ try {
   const coreNamespace = namespaces.find(({ role }) => role === 'core').name;
   const branches = namespaces.filter(({ role }) => role === 'bu');
   const values = { ...readEnv('.env'), ...process.env };
-  const jwtSecretKey = required(values, 'JWT_SECRET_KEY', '.env');
-  if (jwtSecretKey.length < 32) throw new Error('JWT_SECRET_KEY must be at least 32 characters.');
   const coreDatabase = databasePasswords(values, 'CORE');
   const publisher = queueAccount(values, 'CORE_QUEUE_CONNECTION');
   const workers = [];
   const secrets = [
     secret(coreNamespace, 'core-secrets', {
-      Jwt__Key: jwtSecretKey,
       ConnectionStrings__Core: `${required(values, 'CORE_DB_CONNECTION', '.env')};Password="${coreDatabase.password}"`,
       Queue__ConnectionString: publisher.connection,
     }),
