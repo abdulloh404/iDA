@@ -1,0 +1,4 @@
+interface:
+  display_name: "Comment Code"
+  short_description: "เขียน code comment ภาษาไทยพร้อม technical terms"
+  default_prompt: "ใช้ $comment-code เพื่อเพิ่มหรือแก้ code comment ตามรูปแบบที่กำหนด"
