@@ -3,6 +3,7 @@ using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Ida.Domain.Core;
 
 namespace Ida.Application.Features.Doctors;
 
@@ -136,11 +137,23 @@ public sealed class DoctorWelfareSpec
 
     public override Expression<Func<DoctorWelfare, DoctorWelfareListItem>> ListProjection =>
         e => new DoctorWelfareListItem(e.Id, e.DoctorId,
-            e.Doctor == null ? null : e.Doctor.FirstNameTh + " " + e.Doctor.LastNameTh,
-            e.Doctor == null ? null : e.Doctor.DoctorGlobalCode,
+            null, null,
             e.WelfarePlan == null ? null : e.WelfarePlan.NameTh,
             e.WelfarePlan == null ? WelfareScope.None : e.WelfarePlan.WelfareScope,
             e.WelfareYear, e.AnnualLimit, e.UsedAmount, e.RemainingAmount, e.Status);
+
+    public override async Task<IReadOnlyList<DoctorWelfareListItem>> EnrichListAsync(
+        IReadOnlyList<DoctorWelfareListItem> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var doctorIds = items.Select(e => e.DoctorId).Distinct().ToArray();
+        var doctors = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => doctorIds.Contains(e.Id))
+            .Select(e => new { e.Id, e.DoctorGlobalCode, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var byId = doctors.ToDictionary(e => e.Id);
+        return items.Select(e => byId.TryGetValue(e.DoctorId, out var doctor)
+            ? e with { DoctorName = doctor.Name, DoctorGlobalCode = doctor.DoctorGlobalCode }
+            : e).ToList();
+    }
 
     public override Expression<Func<DoctorWelfare, DoctorWelfareDetail>> DetailProjection =>
         e => new DoctorWelfareDetail(e.Id, e.DoctorId, e.WelfarePlanId, e.WelfareYear,
@@ -152,7 +165,7 @@ public sealed class DoctorWelfareSpec
         new Dictionary<string, Expression<Func<DoctorWelfare, object?>>>
         {
             ["welfareYear"] = e => e.WelfareYear,
-            ["doctorGlobalCode"] = e => e.Doctor == null ? null : e.Doctor.DoctorGlobalCode,
+            ["doctorGlobalCode"] = e => e.DoctorId,
             ["annualLimit"] = e => e.AnnualLimit,
             ["remainingAmount"] = e => e.RemainingAmount,
             ["status"] = e => e.Status,
@@ -169,16 +182,38 @@ public sealed class DoctorWelfareSpec
         if (r.Enum<WelfareScope>("welfareScope") is { } parsed)
             q = q.Where(e => e.WelfarePlan != null && e.WelfarePlan.WelfareScope == parsed);
 
-        if (!string.IsNullOrWhiteSpace(r.Q))
-        {
-            var text = r.Q.Trim();
-            q = q.Where(e => e.Doctor != null &&
-                (e.Doctor.DoctorGlobalCode.Contains(text) ||
-                 e.Doctor.FirstNameTh.Contains(text) ||
-                 e.Doctor.LastNameTh.Contains(text)));
-        }
-
         return q;
+    }
+
+    public override async Task<IQueryable<DoctorWelfare>> PrepareListQueryAsync(
+        IQueryable<DoctorWelfare> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Q)) return query;
+        var text = request.Q.Trim();
+        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => e.DoctorGlobalCode.Contains(text) || e.FirstNameTh.Contains(text) || e.LastNameTh.Contains(text))
+            .Select(e => e.Id), ct);
+        return query.Where(e => doctorIds.Contains(e.DoctorId));
+    }
+
+    public override async Task<IQueryable<DoctorWelfare>> ApplySortAsync(
+        IQueryable<DoctorWelfare> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        var (key, descending) = request.ParseSort(DefaultSort);
+        if (key != "doctorGlobalCode")
+            return await base.ApplySortAsync(query, request, related, ct);
+
+        var candidateIds = await related.ToListAsync(query.Select(e => e.DoctorId).Distinct(), ct);
+        var doctors = related.Query<Doctor>().Where(e => candidateIds.Contains(e.Id));
+        var orderedIds = await related.ToListAsync((descending
+            ? doctors.OrderByDescending(e => e.DoctorGlobalCode).ThenByDescending(e => e.Id)
+            : doctors.OrderBy(e => e.DoctorGlobalCode).ThenBy(e => e.Id)).Select(e => e.Id), ct);
+        var ranks = orderedIds.ToArray();
+        return query.OrderBy(e => ranks.Contains(e.DoctorId)
+            ? Array.IndexOf(ranks, e.DoctorId)
+            : descending ? int.MinValue : int.MaxValue).ThenBy(e => e.Id);
     }
 
     public override void Apply(DoctorWelfare e, DoctorWelfareInput input, bool isCreate)
@@ -242,4 +277,3 @@ public sealed class DoctorWelfareSpec
         new("สถานะ", r => MasterFieldRules.StatusTh(r.Status)),
     ];
 }
-

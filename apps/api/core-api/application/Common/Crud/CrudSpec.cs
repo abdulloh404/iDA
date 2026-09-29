@@ -31,7 +31,21 @@ public abstract class CrudSpec<TEntity, TList, TDetail, TInput> : ICrudSpecMeta
 
     public virtual IQueryable<TEntity> Search(IQueryable<TEntity> query, ListRequest request) => query;
 
+    public virtual Task<IQueryable<TEntity>> PrepareListQueryAsync(IQueryable<TEntity> query,
+        ListRequest request, ICrudRelatedData related, CancellationToken ct) =>
+        Task.FromResult(query);
+
+    public virtual Task<IQueryable<TEntity>> ApplySortAsync(IQueryable<TEntity> query,
+        ListRequest request, ICrudRelatedData related, CancellationToken ct) =>
+        Task.FromResult(CrudQuery.ApplySort(query, Sortable, request, DefaultSort));
+
     public virtual IQueryable<TEntity> IncludeForDetail(IQueryable<TEntity> query) => query;
+
+    public virtual Task<IReadOnlyList<TList>> EnrichListAsync(IReadOnlyList<TList> items,
+        ICrudRelatedData related, CancellationToken ct) => Task.FromResult(items);
+
+    public virtual Task<TDetail> EnrichDetailAsync(TDetail item, ICrudRelatedData related,
+        CancellationToken ct) => Task.FromResult(item);
 
     public virtual IReadOnlyList<string> FilterKeys => [];
 
@@ -84,4 +98,3 @@ public interface ICrudSpecMeta
     bool HasExport { get; }
     bool HasLookup { get; }
 }
-

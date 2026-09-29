@@ -141,14 +141,16 @@ public class IdaDbContext : DbContext
 
         model.ApplyConfigurationsFromAssembly(typeof(IdaDbContext).Assembly);
 
-        if (!Layout.IsBranch)
+        if (!Layout.IsReferenceModel)
         {
-            var branchTypes = model.Model.GetEntityTypes()
-                .Where(entity => DatabaseLayout.IsBuEntity(entity.ClrType))
+            var excludedTypes = model.Model.GetEntityTypes()
+                .Where(entity => Layout.IsBranch
+                    ? !DatabaseLayout.IsBranchTable(entity.ClrType)
+                    : DatabaseLayout.IsBuEntity(entity.ClrType))
                 .Select(entity => entity.ClrType)
                 .Distinct()
                 .ToList();
-            foreach (var type in branchTypes) model.Ignore(type);
+            foreach (var type in excludedTypes) model.Ignore(type);
         }
 
         ApplyConventions(model);
@@ -233,7 +235,7 @@ public class IdaDbContext : DbContext
                     .IsConcurrencyToken();
 
             ApplyClientGeneratedKey(entity);
-            ApplyHospitalForeignKey(builder, entity);
+            if (!Layout.IsBranch) ApplyHospitalForeignKey(builder, entity);
             ApplyRowFilter(builder, clr);
             ApplyIndexes(builder, entity, clr, table);
         }
@@ -247,19 +249,7 @@ public class IdaDbContext : DbContext
             var table = entity.GetTableName() ?? Naming.ToSnakeCase(clr.Name);
             var builder = model.Entity(clr);
 
-            if (Layout.IsBranch && !DatabaseLayout.IsBranchTable(clr))
-            {
-                builder.ToView(table, Layout.CoreSchemaName);
-                if (typeof(IConcurrencyAware).IsAssignableFrom(clr))
-                    builder.Property(nameof(IConcurrencyAware.RowVersion))
-                        .HasColumnName("row_version")
-                        .HasColumnType("xid")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .IsConcurrencyToken();
-                continue;
-            }
-
-            builder.ToTable(table, Layout.SchemaName);
+            builder.ToTable(table, Layout.IsReferenceModel && DatabaseLayout.IsBranchTable(clr) ? BuSchema : Layout.SchemaName);
         }
     }
 
@@ -274,7 +264,7 @@ public class IdaDbContext : DbContext
 
         if (invalid is not null)
             throw new InvalidOperationException(
-                $"Entity '{invalid.Metadata.ClrType.Name}' is a read-only Core lookup in a BU database.");
+                $"Entity '{invalid.Metadata.ClrType.Name}' belongs to the Core database and cannot be saved through a BU context.");
     }
 
     private static void ApplyClientGeneratedKey(IMutableEntityType entity)

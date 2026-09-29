@@ -70,7 +70,7 @@ public sealed class DatabaseContexts(
     {
         var options = new DbContextOptionsBuilder<IdaDbContext>();
         options.UseNpgsql(connectionString, npgsql => npgsql
-            .MapIdaEnums(core.SchemaName)
+            .MapIdaEnums(endpoint.SchemaName)
             .MigrationsHistoryTable("__ef_migrations_history", endpoint.SchemaName));
         options.ReplaceService<IModelCacheKeyFactory, DatabaseModelCacheKeyFactory>();
         return new IdaDbContext(
@@ -86,7 +86,7 @@ public sealed class DatabaseContexts(
     {
         var options = new DbContextOptionsBuilder<IdaDbContext>();
         options.UseNpgsql(registry.GetSource(endpoint), npgsql => npgsql
-            .MapIdaEnums(core.SchemaName)
+            .MapIdaEnums(endpoint.SchemaName)
             .MigrationsHistoryTable("__ef_migrations_history", endpoint.SchemaName));
         options.ReplaceService<IModelCacheKeyFactory, DatabaseModelCacheKeyFactory>();
         options.ConfigureWarnings(warnings => warnings.Ignore(

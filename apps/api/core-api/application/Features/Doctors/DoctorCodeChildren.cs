@@ -3,6 +3,7 @@ using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Core = Ida.Domain.Core;
 
 namespace Ida.Application.Features.Doctors;
 
@@ -36,11 +37,27 @@ public sealed class DoctorBankAccountSpec
 
     public override Expression<Func<DoctorBankAccount, DoctorBankAccountRow>> ListProjection =>
         e => new DoctorBankAccountRow(e.Id, e.DoctorId,
-            e.BankBranch == null || e.BankBranch.Bank == null ? null : e.BankBranch.Bank.BankNameTh,
-            e.BankBranch == null ? null : e.BankBranch.BranchNameTh,
+            null, null,
             e.AccountNoLast4, e.AccountName, e.AccountType,
             e.PaymentType == null ? null : e.PaymentType.NameTh,
             e.EffectiveFrom, e.IsActive, e.ApprovalStatus, e.Status);
+
+    public override async Task<IReadOnlyList<DoctorBankAccountRow>> EnrichListAsync(
+        IReadOnlyList<DoctorBankAccountRow> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var ids = items.Select(e => e.Id).ToArray();
+        var links = await related.ToListAsync(related.Query<DoctorBankAccount>()
+            .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.BankBranchId }), ct);
+        var branchIds = links.Select(e => e.BankBranchId).Distinct().ToArray();
+        var branches = await related.ToListAsync(related.Query<Core.MstBankBranch>()
+            .Where(e => branchIds.Contains(e.Id))
+            .Select(e => new { e.Id, e.BranchNameTh, BankName = e.Bank == null ? null : e.Bank.BankNameTh }), ct);
+        var branchById = branches.ToDictionary(e => e.Id);
+        var linkById = links.ToDictionary(e => e.Id, e => e.BankBranchId);
+        return items.Select(e => linkById.TryGetValue(e.Id, out var branchId) && branchById.TryGetValue(branchId, out var branch)
+            ? e with { BankName = branch.BankName, BranchName = branch.BranchNameTh }
+            : e).ToList();
+    }
 
     public override Expression<Func<DoctorBankAccount, DoctorBankAccountDetail>> DetailProjection =>
         e => new DoctorBankAccountDetail(e.Id, e.DoctorId, e.BankBranchId, e.AccountNoLast4,
@@ -155,9 +172,28 @@ public sealed class DoctorSpecialtySpec
 
     public override Expression<Func<DoctorSpecialty, DoctorSpecialtyRow>> ListProjection =>
         e => new DoctorSpecialtyRow(e.Id, e.DoctorId, e.DoctorCodeId,
-            e.Specialty == null ? null : e.Specialty.SpecialtyNameTh,
-            e.SubSpecialty == null ? null : e.SubSpecialty.SubSpecialtyNameTh,
+            null, null,
             e.IsPrimary, e.OtherSpecialty, e.BoardCertNo, e.Status);
+
+    public override async Task<IReadOnlyList<DoctorSpecialtyRow>> EnrichListAsync(
+        IReadOnlyList<DoctorSpecialtyRow> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var ids = items.Select(e => e.Id).ToArray();
+        var links = await related.ToListAsync(related.Query<DoctorSpecialty>()
+            .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.SpecialtyId, e.SubSpecialtyId }), ct);
+        var specialtyIds = links.Select(e => e.SpecialtyId).Distinct().ToArray();
+        var subSpecialtyIds = links.Where(e => e.SubSpecialtyId != null).Select(e => e.SubSpecialtyId!.Value).Distinct().ToArray();
+        var specialties = await related.ToListAsync(related.Query<Core.MstSpecialty>()
+            .Where(e => specialtyIds.Contains(e.Id)).Select(e => new { e.Id, e.SpecialtyNameTh }), ct);
+        var subSpecialties = await related.ToListAsync(related.Query<Core.MstSubSpecialty>()
+            .Where(e => subSpecialtyIds.Contains(e.Id)).Select(e => new { e.Id, e.SubSpecialtyNameTh }), ct);
+        var specialtyNames = specialties.ToDictionary(e => e.Id, e => e.SpecialtyNameTh);
+        var subSpecialtyNames = subSpecialties.ToDictionary(e => e.Id, e => e.SubSpecialtyNameTh);
+        var linkById = links.ToDictionary(e => e.Id);
+        return items.Select(e => linkById.TryGetValue(e.Id, out var link)
+            ? e with { SpecialtyName = specialtyNames.GetValueOrDefault(link.SpecialtyId), SubSpecialtyName = link.SubSpecialtyId is { } subId ? subSpecialtyNames.GetValueOrDefault(subId) : null }
+            : e).ToList();
+    }
 
     public override Expression<Func<DoctorSpecialty, DoctorSpecialtyDetail>> DetailProjection =>
         e => new DoctorSpecialtyDetail(e.Id, e.DoctorId, e.DoctorCodeId, e.SpecialtyId,
@@ -388,9 +424,25 @@ public sealed class BuDoctorDocumentSpec
 
     public override Expression<Func<BuDoctorDocument, BuDoctorDocumentRow>> ListProjection =>
         e => new BuDoctorDocumentRow(e.Id, e.DoctorId,
-            e.DocType == null ? null : e.DocType.DocTypeNameTh,
+            null,
             e.DocumentName, e.HasExpiry, e.ExpiryDate, e.RefTable, e.UploadedBy, e.UploadedAt,
             e.Status);
+
+    public override async Task<IReadOnlyList<BuDoctorDocumentRow>> EnrichListAsync(
+        IReadOnlyList<BuDoctorDocumentRow> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var ids = items.Select(e => e.Id).ToArray();
+        var links = await related.ToListAsync(related.Query<BuDoctorDocument>()
+            .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.DocTypeId }), ct);
+        var docTypeIds = links.Select(e => e.DocTypeId).Distinct().ToArray();
+        var types = await related.ToListAsync(related.Query<Core.MstDocumentType>()
+            .Where(e => docTypeIds.Contains(e.Id)).Select(e => new { e.Id, e.DocTypeNameTh }), ct);
+        var names = types.ToDictionary(e => e.Id, e => e.DocTypeNameTh);
+        var linkById = links.ToDictionary(e => e.Id, e => e.DocTypeId);
+        return items.Select(e => linkById.TryGetValue(e.Id, out var typeId)
+            ? e with { DocTypeName = names.GetValueOrDefault(typeId) }
+            : e).ToList();
+    }
 
     public override Expression<Func<BuDoctorDocument, BuDoctorDocumentDetail>> DetailProjection =>
         e => new BuDoctorDocumentDetail(e.Id, e.DoctorId, e.DocTypeId, e.DocumentName, e.FileUrl,
@@ -451,4 +503,3 @@ public sealed class BuDoctorDocumentSpec
         return Task.CompletedTask;
     }
 }
-

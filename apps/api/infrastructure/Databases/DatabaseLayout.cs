@@ -9,6 +9,7 @@ public sealed record DatabaseLayout(
     string? HospitalId)
 {
     public bool IsBranch => string.Equals(Kind, "bu", StringComparison.OrdinalIgnoreCase);
+    public bool IsReferenceModel => string.Equals(Kind, "references", StringComparison.Ordinal);
 
     public string CacheKey =>
         $"{Kind}:{SchemaName}:{CoreSchemaName}:{HospitalId ?? string.Empty}";

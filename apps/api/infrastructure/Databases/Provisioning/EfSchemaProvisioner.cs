@@ -22,7 +22,6 @@ internal static class EfSchemaProvisioner
         await ProvisioningSql.ExecuteAsync(connection, transaction,
             $"""
             CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(endpoint.SchemaName)};
-            CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(core.SchemaName)};
             CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA {ProvisioningSql.Identifier(endpoint.SchemaName)};
             DO $$
             DECLARE
@@ -31,7 +30,7 @@ internal static class EfSchemaProvisioner
                 FOR extension_name IN
                     SELECT e.extname FROM pg_extension e
                     JOIN pg_namespace n ON n.oid=e.extnamespace
-                    WHERE n.nspname='public' AND e.extname IN ('pgcrypto','postgres_fdw')
+                    WHERE n.nspname='public' AND e.extname='pgcrypto'
                 LOOP
                     EXECUTE format('ALTER EXTENSION %I SET SCHEMA %I', extension_name, {ProvisioningSql.Literal(endpoint.SchemaName)});
                 END LOOP;
@@ -40,7 +39,9 @@ internal static class EfSchemaProvisioner
             ct);
 
         var model = context.GetService<IDesignTimeModel>().Model;
-        await EnsureEnumsAsync(model, connection, transaction, core.SchemaName, ct);
+        if (endpoint.Kind == "bu")
+            await LegacyCoreLookupCleanup.ApplyAsync(model, connection, transaction, endpoint, core, ct);
+        await EnsureEnumsAsync(model, connection, transaction, endpoint.SchemaName, ct);
 
         var differ = context.GetService<IMigrationsModelDiffer>();
         var operations = differ.GetDifferences(null, model.GetRelationalModel()).ToList();
@@ -115,13 +116,13 @@ internal static class EfSchemaProvisioner
         IModel model,
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
-        string coreSchema,
+        string endpointSchema,
         CancellationToken ct)
     {
         foreach (var definition in model.GetPostgresEnums())
         {
             var schema = string.IsNullOrWhiteSpace(definition.Schema) || definition.Schema == IdaDbContext.CoreSchema
-                ? coreSchema
+                ? endpointSchema
                 : definition.Schema;
             var labels = new List<string>();
             await using (var command = new NpgsqlCommand("""

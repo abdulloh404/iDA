@@ -6,9 +6,9 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestConfigurationStore
+public sealed class IngestConfigurationStore(NpgsqlDataSource source, DatabaseRegistry registry) : IIngestConfigurationStore
 {
-    private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction tx,
+    private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction? tx,
         string sql, params (string Name, object? Value)[] values)
     {
         var cmd = new NpgsqlCommand(DatabaseSql.Rewrite(sql, db), db, tx);
@@ -66,24 +66,38 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestC
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
+    private async Task<long> CountDefinitionsAsync(string[] codes, CancellationToken ct)
+    {
+        await using var core = await registry.CoreSource.OpenConnectionAsync(ct);
+        await using var cmd = Cmd(core, null,
+            "SELECT count(*) FROM core.ingest_interface_definition WHERE code=ANY(@codes)", ("codes", codes));
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(ct));
+    }
+
     public async Task<IngestConfigurationDto> Read(string hospital, CancellationToken ct)
     {
+        var definitions = new List<InterfaceDto>();
+        await using (var core = await registry.CoreSource.OpenConnectionAsync(ct))
+        await using (var cmd = Cmd(core, null, """
+            SELECT code,coalesce(display_name,code),source_system
+            FROM core.ingest_interface_definition ORDER BY source_system,code
+            """))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct))
+                definitions.Add(new InterfaceDto(reader.GetString(0), reader.GetString(1), reader.GetString(2), null));
+
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
         await Tenant(db, tx, hospital, ct);
-        var interfaces = new List<InterfaceDto>();
+        var endpoints = new Dictionary<string, string?>(StringComparer.Ordinal);
         await using (var cmd = Cmd(db, tx, """
-            SELECT d.code,coalesce(d.display_name,d.code),d.source_system,
-                c.endpoint_url
-            FROM core.ingest_interface_definition d
-            LEFT JOIN bu.ingest_interface_config c ON c.dataset_code=d.code
-                AND c.hospital_id=@hospital
-            ORDER BY d.source_system,d.code
+            SELECT dataset_code,endpoint_url
+            FROM bu.ingest_interface_config WHERE hospital_id=@hospital
             """, ("hospital", hospital)))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
-                interfaces.Add(new InterfaceDto(reader.GetString(0), reader.GetString(1),
-                    reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
+                endpoints.Add(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1));
+        var interfaces = definitions.Select(definition => definition with { EndpointUrl = endpoints.GetValueOrDefault(definition.Code) }).ToArray();
 
         var schedules = new List<ScheduleDto>();
         await using (var cmd = Cmd(db, tx, """
@@ -131,7 +145,7 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestC
                 workerOnline = reader.GetBoolean(1);
             }
         await tx.CommitAsync(ct);
-        return new IngestConfigurationDto(hospital, interfaces.ToArray(), schedules.ToArray(),
+        return new IngestConfigurationDto(hospital, interfaces, schedules.ToArray(),
             cancelledScheduleCount, workerOnline, workerLastSeenAt);
     }
 
@@ -194,6 +208,8 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestC
             || parsed.Scheme != Uri.UriSchemeHttps || url.Length > 2048
             || !string.IsNullOrEmpty(parsed.UserInfo)))
             throw ApiException.BadRequest("invalid_url", "URL ต้องเป็น HTTPS และไม่มีรหัสผ่านใน URL");
+        if (await CountDefinitionsAsync([code], ct) != 1)
+            throw ApiException.NotFound("domain_not_found", "ไม่พบโดเมนนี้ในรายการที่รองรับ");
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
         await Tenant(db, tx, hospital, ct);
@@ -201,8 +217,7 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestC
         await using var cmd = Cmd(db, tx, """
             INSERT INTO bu.ingest_interface_config
                 (hospital_id,dataset_code,endpoint_url,updated_by)
-            SELECT @hospital,d.code,@url,@actor
-            FROM core.ingest_interface_definition d WHERE d.code=@code
+            VALUES(@hospital,@code,@url,@actor)
             ON CONFLICT(hospital_id,dataset_code) DO UPDATE SET
                 endpoint_url=EXCLUDED.endpoint_url,
                 updated_at=now(),updated_by=EXCLUDED.updated_by
@@ -238,16 +253,12 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source) : IIngestC
             throw ApiException.BadRequest("invalid_interval", "รอบเวลาต้องอยู่ระหว่าง 1 นาทีถึง 365 วัน");
         if (id.HasValue && (!input.Revision.HasValue || input.Revision.Value < 1))
             throw ApiException.BadRequest("revision_required", "ต้องส่งรุ่นข้อมูลเดิมเมื่อแก้ไขรอบงาน");
+        if (await CountDefinitionsAsync(codes, ct) != codes.Length)
+            throw ApiException.BadRequest("unknown_domain", "มีโดเมนที่ระบบยังไม่รองรับ");
 
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
         await Tenant(db, tx, hospital, ct);
-        await using (var cmd = Cmd(db, tx, """
-            SELECT count(*) FROM core.ingest_interface_definition
-            WHERE code=ANY(@codes)
-            """, ("codes", codes)))
-            if (Convert.ToInt64(await cmd.ExecuteScalarAsync(ct)) != codes.Length)
-                throw ApiException.BadRequest("unknown_domain", "มีโดเมนที่ระบบยังไม่รองรับ");
         var scheduleId = id ?? Guid.CreateVersion7();
         var oldValue = id.HasValue
             ? await ScheduleSnapshot(db, tx, hospital, scheduleId, ct) : null;

@@ -29,7 +29,7 @@ public sealed class DatabaseRegistry : IDisposable
     public NpgsqlDataSource GetSource(DatabaseEndpoint endpoint)
     {
         var connectionString = ConnectionString(endpoint);
-        return sources.GetOrAdd(connectionString, value => new NpgsqlDataSourceBuilder(value).MapIdaEnums(Core.SchemaName).Build());
+        return sources.GetOrAdd(connectionString, value => new NpgsqlDataSourceBuilder(value).MapIdaEnums(endpoint.SchemaName).Build());
     }
 
     public string ConnectionString(DatabaseEndpoint endpoint, bool administrator = false)
@@ -91,7 +91,7 @@ public sealed class DatabaseRegistry : IDisposable
         }.ConnectionString;
     }
 
-    private string SearchPath(DatabaseEndpoint endpoint) => endpoint.Kind == "bu" ? $"{endpoint.SchemaName},{Core.SchemaName}" : $"bu,{Core.SchemaName}";
+    private static string SearchPath(DatabaseEndpoint endpoint) => endpoint.SchemaName;
 
     public async Task<NpgsqlConnection> OpenAsync(DatabaseEndpoint endpoint, CancellationToken ct = default, bool administrator = false)
     {
@@ -128,7 +128,7 @@ public sealed class DatabaseRegistry : IDisposable
             var value = configuration[$"{connectionKey}_DB_CONNECTION"] ?? configuration.GetConnectionString(connectionKey);
             if (string.IsNullOrWhiteSpace(value)) continue;
             var endpoint = ReadEndpoint(connectionKey, value, "bu");
-            if (endpoint.SchemaName == Core.SchemaName) throw new InvalidOperationException($"{connectionKey} must use a schema name distinct from the Core lookup schema.");
+            if (endpoint.SchemaName == Core.SchemaName) throw new InvalidOperationException($"{connectionKey} must use a BU schema name distinct from the Core schema.");
             if (endpoints.Any(other => other.Host == endpoint.Host && other.Port == endpoint.Port && other.DatabaseName == endpoint.DatabaseName))
                 throw new InvalidOperationException($"{connectionKey} must have a separate database from Core and other BUs.");
             if (endpoints.Any(other => other.HospitalId == endpoint.HospitalId)) throw new InvalidOperationException($"Duplicate hospital ID for {connectionKey}.");
@@ -240,7 +240,7 @@ public sealed class DatabaseRegistry : IDisposable
         {
             var entry = new DatabaseEndpoint(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3), reader.GetInt32(4), reader.GetString(5), reader.GetString(6), reader.GetString(7), reader.GetString(8)) { SslMode = reader.GetString(9) };
             Validate(entry);
-            if (entry.SchemaName == Core.SchemaName) throw new InvalidOperationException($"{entry.ConnectionKey} conflicts with the Core lookup schema.");
+            if (entry.SchemaName == Core.SchemaName) throw new InvalidOperationException($"{entry.ConnectionKey} must use a BU schema name distinct from the Core schema.");
             if (entry.Host == Core.Host && entry.Port == Core.Port && entry.DatabaseName == Core.DatabaseName) throw new InvalidOperationException($"{entry.ConnectionKey} points to the Core database.");
             entries.Add(entry);
         }

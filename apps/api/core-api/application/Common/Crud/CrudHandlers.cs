@@ -6,7 +6,8 @@ namespace Ida.Application.Common.Crud;
 public class CrudListHandler<TEntity, TList, TDetail, TInput>(
     CrudSpec<TEntity, TList, TDetail, TInput> spec,
     IRepository<TEntity> repo,
-    IQueryExecutor exec)
+    IQueryExecutor exec,
+    ICrudRelatedData related)
     : IQueryHandler<ListQuery<TEntity, TList>, PagedResult<TList>>
     where TEntity : class, IEntity, new()
 {
@@ -14,14 +15,16 @@ public class CrudListHandler<TEntity, TList, TDetail, TInput>(
     {
         var request = query.Request;
         var q = spec.Search(repo.Query(), request);
+        q = await spec.PrepareListQueryAsync(q, request, related, ct);
         q = CrudQuery.ApplyStatusFilter(q, request.Status);
 
         var total = await exec.CountAsync(q, ct);
 
-        q = CrudQuery.ApplySort(q, spec.Sortable, request, spec.DefaultSort);
+        q = await spec.ApplySortAsync(q, request, related, ct);
         var page = q.Skip(request.Skip).Take(request.PageSize).Select(spec.ListProjection);
 
         var items = await exec.ToListAsync(page, ct);
+        items = [.. await spec.EnrichListAsync(items, related, ct)];
         return new PagedResult<TList>(items, request.Page, request.PageSize, total);
     }
 }
@@ -29,7 +32,8 @@ public class CrudListHandler<TEntity, TList, TDetail, TInput>(
 public class CrudGetByIdHandler<TEntity, TList, TDetail, TInput>(
     CrudSpec<TEntity, TList, TDetail, TInput> spec,
     IRepository<TEntity> repo,
-    IQueryExecutor exec)
+    IQueryExecutor exec,
+    ICrudRelatedData related)
     : IQueryHandler<GetByIdQuery<TEntity, TDetail>, TDetail>
     where TEntity : class, IEntity, new()
 {
@@ -38,8 +42,9 @@ public class CrudGetByIdHandler<TEntity, TList, TDetail, TInput>(
         var q = spec.IncludeForDetail(repo.Query()).Where(e => e.Id == query.Id);
         var dto = await exec.FirstOrDefaultAsync(q.Select(spec.DetailProjection), ct);
 
-        return dto ?? throw ApiException.NotFound(
+        var found = dto ?? throw ApiException.NotFound(
             $"{spec.Resource}_not_found", $"ไม่พบข้อมูล{spec.DisplayNameTh}ที่ระบุ");
+        return await spec.EnrichDetailAsync(found, related, ct);
     }
 }
 
@@ -48,7 +53,8 @@ public class CrudCreateHandler<TEntity, TList, TDetail, TInput>(
     IRepository<TEntity> repo,
     IQueryExecutor exec,
     IUnitOfWork uow,
-    ICurrentUser actor)
+    ICurrentUser actor,
+    ICrudRelatedData related)
     : ICommandHandler<CreateCommand<TEntity, TDetail, TInput>, TDetail>
     where TEntity : class, IEntity, new()
 {
@@ -80,7 +86,7 @@ public class CrudCreateHandler<TEntity, TList, TDetail, TInput>(
         await spec.OnSavedAsync(entity, command.Input, isCreate: true, ct);
         await uow.SaveChangesAsync(ct);
 
-        return await CrudQuery.LoadDetailAsync(spec, repo, exec, entity.Id, ct);
+        return await CrudQuery.LoadDetailAsync(spec, repo, exec, related, entity.Id, ct);
     }
 }
 
@@ -89,7 +95,8 @@ public class CrudUpdateHandler<TEntity, TList, TDetail, TInput>(
     IRepository<TEntity> repo,
     IQueryExecutor exec,
     IUnitOfWork uow,
-    ICurrentUser actor)
+    ICurrentUser actor,
+    ICrudRelatedData related)
     : ICommandHandler<UpdateCommand<TEntity, TDetail, TInput>, TDetail>
     where TEntity : class, IEntity, new()
 {
@@ -119,7 +126,7 @@ public class CrudUpdateHandler<TEntity, TList, TDetail, TInput>(
         await spec.OnSavedAsync(entity, command.Input, isCreate: false, ct);
         await uow.SaveChangesAsync(ct);
 
-        return await CrudQuery.LoadDetailAsync(spec, repo, exec, entity.Id, ct);
+        return await CrudQuery.LoadDetailAsync(spec, repo, exec, related, entity.Id, ct);
     }
 }
 
@@ -177,7 +184,8 @@ public class CrudExportHandler<TEntity, TList, TDetail, TInput>(
     IRepository<TEntity> repo,
     IQueryExecutor exec,
     IExcelWriter excel,
-    IClock clock)
+    IClock clock,
+    ICrudRelatedData related)
     : IQueryHandler<ExportQuery<TEntity, TList>, ExportFile>
     where TEntity : class, IEntity, new()
 {
@@ -188,10 +196,12 @@ public class CrudExportHandler<TEntity, TList, TDetail, TInput>(
                 $"ยังไม่ได้กำหนดรูปแบบไฟล์ Export ของ{spec.DisplayNameTh}");
 
         var q = spec.Search(repo.Query(), query.Request);
+        q = await spec.PrepareListQueryAsync(q, query.Request, related, ct);
         q = CrudQuery.ApplyStatusFilter(q, query.Request.Status);
-        q = CrudQuery.ApplySort(q, spec.Sortable, query.Request, spec.DefaultSort);
+        q = await spec.ApplySortAsync(q, query.Request, related, ct);
 
         var rows = await exec.ToListAsync(q.Select(spec.ListProjection), ct);
+        rows = [.. await spec.EnrichListAsync(rows, related, ct)];
         var bytes = excel.Write(rows, spec.ExportColumns, spec.ExportSheetName);
         var stamp = clock.Now.ToString("yyyyMMdd-HHmm");
         return new ExportFile(bytes, $"{spec.Resource}-{stamp}.xlsx");
@@ -264,13 +274,14 @@ internal static class CrudQuery
 
     public static async Task<TDetail> LoadDetailAsync<TEntity, TList, TDetail, TInput>(
         CrudSpec<TEntity, TList, TDetail, TInput> spec,
-        IRepository<TEntity> repo, IQueryExecutor exec, Guid id, CancellationToken ct)
+        IRepository<TEntity> repo, IQueryExecutor exec, ICrudRelatedData related, Guid id,
+        CancellationToken ct)
         where TEntity : class, IEntity, new()
     {
         var q = spec.IncludeForDetail(repo.Query()).Where(e => e.Id == id);
-        return await exec.FirstOrDefaultAsync(q.Select(spec.DetailProjection), ct)
+        var detail = await exec.FirstOrDefaultAsync(q.Select(spec.DetailProjection), ct)
             ?? throw ApiException.NotFound(
                 $"{spec.Resource}_not_found", $"ไม่พบข้อมูล{spec.DisplayNameTh}ที่ระบุ");
+        return await spec.EnrichDetailAsync(detail, related, ct);
     }
 }
-

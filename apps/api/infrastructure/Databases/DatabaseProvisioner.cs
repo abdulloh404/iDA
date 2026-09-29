@@ -1,10 +1,9 @@
 using Ida.Infrastructure.Databases.Provisioning;
-using Microsoft.Extensions.Configuration;
 using Npgsql;
 
 namespace Ida.Infrastructure.Databases;
 
-public sealed class DatabaseProvisioner(IConfiguration config, DatabaseRegistry registry)
+public sealed class DatabaseProvisioner(DatabaseRegistry registry)
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
@@ -26,18 +25,15 @@ public sealed class DatabaseProvisioner(IConfiguration config, DatabaseRegistry 
 
         await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, registry.Core, ct);
         var ingest = new IngestSchemaProvisioner();
-        var lookups = new CoreLookupProvisioner(config, registry);
 
         if (string.Equals(endpoint.Kind, "core", StringComparison.OrdinalIgnoreCase))
         {
             await TenantSecurityProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
             await ingest.ApplyCoreAsync(connection, transaction, endpoint, ct);
-            await lookups.CreateViewsAsync(context, connection, transaction, endpoint, ct);
         }
         else
         {
             await TenantSecurityProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
-            await lookups.CreateForeignTablesAsync(connection, transaction, endpoint, registry.Core, ct);
             await ingest.ApplyBranchAsync(connection, transaction, endpoint, ct);
             await TenantSecurityProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
         }

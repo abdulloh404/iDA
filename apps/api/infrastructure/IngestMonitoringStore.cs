@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class IngestMonitoringStore(NpgsqlDataSource source) : IIngestMonitoringStore
+public sealed class IngestMonitoringStore(NpgsqlDataSource source, DatabaseRegistry registry) : IIngestMonitoringStore
 {
     private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction? tx,
         string sql, params (string Name, object? Value)[] values)
@@ -287,20 +287,19 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source) : IIngestMoni
             DateOrNull(reader, 2), DateOrNull(reader, 3));
     }
 
-    private static async Task<IReadOnlyList<IngestRunListItem>> ReadRuns(NpgsqlConnection db,
+    private async Task<IReadOnlyList<IngestRunListItem>> ReadRuns(NpgsqlConnection db,
         NpgsqlTransaction tx, string extraWhere, (string Name, object? Value)[] extraValues,
         CancellationToken ct)
     {
         var rows = new List<IngestRunListItem>();
-        await using var cmd = Cmd(db, tx, $"""
-            SELECT r.id,r.batch_id,r.dataset_code,d.display_name,r.fixture_version,
+        await using (var cmd = Cmd(db, tx, $"""
+            SELECT r.id,r.batch_id,r.dataset_code,NULL::text,r.fixture_version,
                 r.business_date,r.source_mode,r.status,r.started_at,r.finished_at,
                 r.received_count,r.staged_count,r.changed_count,r.duplicate_count,
                 r.pending_count,r.rejected_count,r.source_total,r.loaded_total,
                 coalesce(raw.raw_pages,0)::int,coalesce(raw.raw_bodies,0)::int,
                 coalesce(issue.issue_count,0)::int,x.status,x.difference,r.error_message
             FROM bu.ingest_run r
-            LEFT JOIN core.ingest_interface_definition d ON d.code=r.dataset_code
             LEFT JOIN LATERAL (
                 SELECT count(*) AS raw_pages,count(p.raw_body) AS raw_bodies
                 FROM bu.ingest_response_page p
@@ -314,10 +313,19 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source) : IIngestMoni
                 AND x.run_id=r.id
             WHERE r.hospital_id=current_setting('app.hospital_id', true) AND {extraWhere}
             ORDER BY r.started_at DESC,r.id DESC
-            """, extraValues);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) rows.Add(ReadRun(reader));
-        return rows;
+            """, extraValues))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct)) rows.Add(ReadRun(reader));
+        if (rows.Count == 0) return rows;
+
+        var codes = rows.Select(row => row.DatasetCode).Distinct(StringComparer.Ordinal).ToArray();
+        var names = new Dictionary<string, string?>(StringComparer.Ordinal);
+        await using var core = await registry.CoreSource.OpenConnectionAsync(ct);
+        await using (var cmd = Cmd(core, null,
+            "SELECT code,display_name FROM core.ingest_interface_definition WHERE code=ANY(@codes)", ("codes", codes)))
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            while (await reader.ReadAsync(ct)) names.Add(reader.GetString(0), Str(reader, 1));
+        return rows.Select(row => row with { DatasetName = names.GetValueOrDefault(row.DatasetCode) }).ToArray();
     }
 
     private static SqlFilter BatchFilter(ListRequest request)

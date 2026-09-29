@@ -3,6 +3,7 @@ using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Ida.Domain.Core;
 
 namespace Ida.Application.Features.DutySchedules;
 
@@ -179,19 +180,43 @@ public sealed class DutyShiftDoctorSpec
     public override Expression<Func<DutyShiftDoctor, DutyShiftDoctorRow>> ListProjection =>
         e => new DutyShiftDoctorRow(e.Id, e.ShiftId, e.DoctorCodeId,
             e.DoctorCode == null ? null : e.DoctorCode.Code,
-            e.DoctorCode == null || e.DoctorCode.Doctor == null
-                ? null
-                : e.DoctorCode.Doctor.FirstNameTh + " " + e.DoctorCode.Doctor.LastNameTh,
+            null,
             e.NoExam, e.WorkStart, e.WorkEnd, e.WorkHours, e.DeductAmount, e.Remark);
 
     public override Expression<Func<DutyShiftDoctor, DutyShiftDoctorDetail>> DetailProjection =>
         e => new DutyShiftDoctorDetail(e.Id, e.ShiftId, e.DoctorCodeId,
             e.DoctorCode == null ? null : e.DoctorCode.Code,
-            e.DoctorCode == null || e.DoctorCode.Doctor == null
-                ? null
-                : e.DoctorCode.Doctor.FirstNameTh + " " + e.DoctorCode.Doctor.LastNameTh,
+            null,
             e.NoExam, e.WorkStart, e.WorkEnd, e.WorkHours, e.DeductAmount, e.Remark,
             e.RowVersion.ToString());
+
+    public override async Task<IReadOnlyList<DutyShiftDoctorRow>> EnrichListAsync(
+        IReadOnlyList<DutyShiftDoctorRow> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var names = await DoctorNamesAsync(items.Select(e => e.DoctorCodeId), related, ct);
+        return items.Select(e => e with { DoctorName = names.GetValueOrDefault(e.DoctorCodeId) }).ToList();
+    }
+
+    public override async Task<DutyShiftDoctorDetail> EnrichDetailAsync(DutyShiftDoctorDetail item,
+        ICrudRelatedData related, CancellationToken ct)
+    {
+        var names = await DoctorNamesAsync([item.DoctorCodeId], related, ct);
+        return item with { DoctorName = names.GetValueOrDefault(item.DoctorCodeId) };
+    }
+
+    private static async Task<Dictionary<Guid, string>> DoctorNamesAsync(
+        IEnumerable<Guid> doctorCodeIds, ICrudRelatedData related, CancellationToken ct)
+    {
+        var codeIds = doctorCodeIds.Distinct().ToArray();
+        var codes = await related.ToListAsync(related.Query<DoctorCode>()
+            .Where(e => codeIds.Contains(e.Id)).Select(e => new { e.Id, e.DoctorId }), ct);
+        var doctorIds = codes.Select(e => e.DoctorId).Distinct().ToArray();
+        var doctors = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => doctorIds.Contains(e.Id))
+            .Select(e => new { e.Id, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var names = doctors.ToDictionary(e => e.Id, e => e.Name);
+        return codes.Where(e => names.ContainsKey(e.DoctorId)).ToDictionary(e => e.Id, e => names[e.DoctorId]);
+    }
 
     public override IReadOnlyDictionary<string,
         Expression<Func<DutyShiftDoctor, object?>>> Sortable =>
@@ -251,4 +276,3 @@ public sealed class DutyShiftDoctorSpec
             ? Math.Round((decimal)(e - s).TotalHours, 2, MidpointRounding.AwayFromZero)
             : null;
 }
-

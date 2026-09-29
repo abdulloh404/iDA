@@ -47,7 +47,7 @@ project/
 Backend อยู่ใน solution เดียว มีสอง process roles: Core API และ Worker
 ไม่มี source หรือ project ที่คัดลอกแยกเป็น BU01–BU03
 
-- Core API กลางเชื่อม **Core Database 1 ก้อน** และ publish งานเข้า Queue/Orchestrator
+- Core API กลางเชื่อม **Core Database 1 ก้อน** และฐาน BU ตามสาขาใน JWT โดยอ่านข้อมูลแต่ละฐานแยกกันแล้วประกอบผลใน API
 - Worker ทั้ง 3 BU ใช้ image `ida/bu-worker` เดียวกัน เปลี่ยนเฉพาะ runtime configuration
 - Kubernetes สร้าง Worker Deployment 1 ตัว + PostgreSQL StatefulSet 1 ตัว ในแต่ละ namespace `bu01`–`bu03`
 - `Bu__Id=BU01` คู่กับ `Bu__QueueName=jobs.bu01` และ `ConnectionStrings__Bu` ของ BU01
@@ -58,6 +58,10 @@ Backend อยู่ใน solution เดียว มีสอง process role
 
 `background-worker` คือโปรเจกต์งานประมวลผลเบื้องหลังที่ใช้ร่วมกันทุกสาขา ไม่ใช่ source แยกต่อสาขา
 เพิ่ม replicas ได้ภายหลังเมื่อทำการ claim งาน, idempotency และ concurrency control แล้ว
+
+ฐาน `ida_core` เก็บข้อมูลและ enum ส่วนกลางใน schema `core` ส่วนฐาน `ida_buNN` เก็บตารางและ enum ของตนเองใน schema `bu` โดยใช้ enum definition ชุดเดียวกันในโค้ด ฐาน BU ไม่มี schema `core` หรือ foreign table ที่เชื่อมกลับไปยัง Core
+
+หลังอัปเดตโค้ดให้รัน `npm run db:migrate` เพื่อปรับ Core และทุก BU ที่ตั้งค่าไว้ สำหรับฐาน BU เดิม migration จะย้าย enum จาก `core` ไป `bu`, ถอด foreign tables ของ Core ที่ระบบสร้างไว้ และลบ schema `core` เมื่อว่าง โดยไม่ลบข้อมูลตาราง BU หากพบชนิดข้อมูลซ้ำหรือวัตถุอื่นขวางการลบ schema จะหยุดและ rollback ฐานนั้นแทนการลบแบบ cascade จากนั้นเริ่ม API/worker ใหม่เพื่อโหลดการตั้งค่า enum ใหม่
 
 ## สถานะ scaffold
 

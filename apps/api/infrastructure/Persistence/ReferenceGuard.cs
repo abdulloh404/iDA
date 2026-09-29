@@ -40,13 +40,16 @@ public class ReferenceGuard(
         if (coreReference is not null) return coreReference;
 
         var branches = await registry.ListBranchesAsync(ct);
+        await using var references = DatabaseContexts.CreateSchemaContext(
+            registry.Core with { Kind = "references" }, registry.Core, registry.ConnectionString(registry.Core));
         foreach (var branch in branches)
         {
             var branchReference = await FindReferenceAsync(
                 contexts.ForBranch(branch),
                 entity,
                 branchReferencesOnly: true,
-                ct);
+                ct,
+                references.Model);
             if (branchReference is not null) return branchReference;
         }
 
@@ -57,9 +60,10 @@ public class ReferenceGuard(
         IdaDbContext db,
         object entity,
         bool branchReferencesOnly,
-        CancellationToken ct)
+        CancellationToken ct,
+        IModel? referenceModel = null)
     {
-        var entityType = db.Model.FindEntityType(entity.GetType());
+        var entityType = (referenceModel ?? db.Model).FindEntityType(entity.GetType());
         if (entityType is null) return null;
 
         foreach (var fk in entityType.GetReferencingForeignKeys())

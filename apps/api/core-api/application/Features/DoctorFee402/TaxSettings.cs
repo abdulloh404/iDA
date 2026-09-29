@@ -3,6 +3,7 @@ using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Ida.Domain.Core;
 
 namespace Ida.Application.Features.DoctorFee402;
 
@@ -37,8 +38,17 @@ public sealed class HospitalPaidTaxSpec
         e => new HospitalPaidTaxListItem(e.Id,
             e.DoctorCode == null ? null : e.DoctorCode.Code,
             e.DoctorCode == null ? null : e.DoctorCode.DisplayNameTh,
-            e.DoctorCode == null || e.DoctorCode.Doctor == null ? null : e.DoctorCode.Doctor.TaxId,
+            null,
             e.Status);
+
+    public override async Task<IReadOnlyList<HospitalPaidTaxListItem>> EnrichListAsync(
+        IReadOnlyList<HospitalPaidTaxListItem> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var data = await TaxDoctorData.ForHospitalPaidTaxAsync(items.Select(e => e.Id), related, ct);
+        return items.Select(e => data.TryGetValue(e.Id, out var doctor)
+            ? e with { DoctorCode = doctor.Code, DoctorName = doctor.Name, TaxId = doctor.TaxId }
+            : e).ToList();
+    }
 
     public override Expression<Func<DfHospitalPaidTax, HospitalPaidTaxDetail>> DetailProjection =>
         e => new HospitalPaidTaxDetail(e.Id, e.DoctorCodeId, e.Status, e.Remark,
@@ -142,11 +152,20 @@ public sealed class TaxDeductionSpec
         e => new TaxDeductionListItem(e.Id,
             e.DoctorCode == null ? null : e.DoctorCode.Code,
             e.DoctorCode == null ? null : e.DoctorCode.DisplayNameTh,
-            e.DoctorCode == null || e.DoctorCode.Doctor == null ? null : e.DoctorCode.Doctor.TaxId,
+            null,
             e.TaxYear, e.ChildCount,
             e.Items.Count(i => i.DeletedAt == null),
             e.Items.Where(i => i.DeletedAt == null).Sum(i => (decimal?)i.Amount) ?? 0m,
             e.Status);
+
+    public override async Task<IReadOnlyList<TaxDeductionListItem>> EnrichListAsync(
+        IReadOnlyList<TaxDeductionListItem> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var data = await TaxDoctorData.ForTaxDeductionAsync(items.Select(e => e.Id), related, ct);
+        return items.Select(e => data.TryGetValue(e.Id, out var doctor)
+            ? e with { DoctorCode = doctor.Code, DoctorName = doctor.Name, TaxId = doctor.TaxId }
+            : e).ToList();
+    }
 
     public override Expression<Func<DfTaxDeduction, TaxDeductionDetail>> DetailProjection =>
         e => new TaxDeductionDetail(e.Id, e.DoctorCodeId, e.TaxYear, e.ChildCount, e.Status,
@@ -170,18 +189,12 @@ public sealed class TaxDeductionSpec
         if (r.Filter("taxYear") is { } year && short.TryParse(year, out var y))
             q = q.Where(e => e.TaxYear == y);
 
-        if (!string.IsNullOrWhiteSpace(r.Q))
-        {
-
-            var text = r.Q.Trim();
-            q = q.Where(e => e.DoctorCode != null &&
-                (e.DoctorCode.Code.Contains(text) || e.DoctorCode.DisplayNameTh.Contains(text) ||
-                 (e.DoctorCode.Doctor != null && e.DoctorCode.Doctor.TaxId != null &&
-                  e.DoctorCode.Doctor.TaxId.Contains(text))));
-        }
-
         return q;
     }
+
+    public override Task<IQueryable<DfTaxDeduction>> PrepareListQueryAsync(
+        IQueryable<DfTaxDeduction> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct) => TaxDoctorData.ApplySearchAsync(query, request, related, ct);
 
     public override void Apply(DfTaxDeduction e, TaxDeductionInput input, bool isCreate)
     {
@@ -265,23 +278,56 @@ public sealed class TaxDeductionItemSpec
 
     public override Expression<Func<DfTaxDeductionItem, TaxDeductionItemRow>> ListProjection =>
         e => new TaxDeductionItemRow(e.Id, e.DeductionId, e.TaxAllowanceItemId,
-            e.TaxAllowanceItem == null ? null : e.TaxAllowanceItem.AllowanceName,
-            e.TaxAllowanceItem == null ? null : e.TaxAllowanceItem.Amount,
-            e.Amount);
+            null, null, e.Amount);
 
     public override Expression<Func<DfTaxDeductionItem, TaxDeductionItemDetail>> DetailProjection =>
         e => new TaxDeductionItemDetail(e.Id, e.DeductionId, e.TaxAllowanceItemId,
-            e.TaxAllowanceItem == null ? null : e.TaxAllowanceItem.AllowanceName,
-            e.TaxAllowanceItem == null ? null : e.TaxAllowanceItem.Amount,
-            e.Amount, e.RowVersion.ToString());
+            null, null, e.Amount, e.RowVersion.ToString());
+
+    public override async Task<IReadOnlyList<TaxDeductionItemRow>> EnrichListAsync(
+        IReadOnlyList<TaxDeductionItemRow> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var allowances = await AllowancesAsync(items.Select(e => e.TaxAllowanceItemId), related, ct);
+        return items.Select(e => allowances.TryGetValue(e.TaxAllowanceItemId, out var allowance)
+            ? e with { AllowanceName = allowance.Name, AllowanceLimit = allowance.Limit }
+            : e).ToList();
+    }
+
+    public override async Task<TaxDeductionItemDetail> EnrichDetailAsync(
+        TaxDeductionItemDetail item, ICrudRelatedData related, CancellationToken ct)
+    {
+        var allowances = await AllowancesAsync([item.TaxAllowanceItemId], related, ct);
+        return allowances.TryGetValue(item.TaxAllowanceItemId, out var allowance)
+            ? item with { AllowanceName = allowance.Name, AllowanceLimit = allowance.Limit }
+            : item;
+    }
 
     public override IReadOnlyDictionary<string,
         Expression<Func<DfTaxDeductionItem, object?>>> Sortable =>
         new Dictionary<string, Expression<Func<DfTaxDeductionItem, object?>>>
         {
-            ["allowanceName"] = e => e.TaxAllowanceItem == null ? null : e.TaxAllowanceItem.AllowanceName,
+            ["allowanceName"] = e => e.TaxAllowanceItemId,
             ["amount"] = e => e.Amount,
         };
+
+    public override async Task<IQueryable<DfTaxDeductionItem>> ApplySortAsync(
+        IQueryable<DfTaxDeductionItem> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        var (key, descending) = request.ParseSort(DefaultSort);
+        if (key != "allowanceName")
+            return await base.ApplySortAsync(query, request, related, ct);
+
+        var candidateIds = await related.ToListAsync(query.Select(e => e.TaxAllowanceItemId).Distinct(), ct);
+        var allowances = related.Query<TaxAllowanceItem>().Where(e => candidateIds.Contains(e.Id));
+        var orderedIds = await related.ToListAsync((descending
+            ? allowances.OrderByDescending(e => e.AllowanceName).ThenByDescending(e => e.Id)
+            : allowances.OrderBy(e => e.AllowanceName).ThenBy(e => e.Id)).Select(e => e.Id), ct);
+        var ranks = orderedIds.ToArray();
+        return query.OrderBy(e => ranks.Contains(e.TaxAllowanceItemId)
+            ? Array.IndexOf(ranks, e.TaxAllowanceItemId)
+            : descending ? int.MinValue : int.MaxValue).ThenBy(e => e.Id);
+    }
 
     public override IQueryable<DfTaxDeductionItem> Search(IQueryable<DfTaxDeductionItem> q,
         ListRequest r)
@@ -320,6 +366,18 @@ public sealed class TaxDeductionItemSpec
             errors.Add("taxAllowanceItemId", "duplicate",
                 "รายการลดหย่อนนี้ถูกกรอกไว้แล้วในปีภาษีนี้");
     }
+
+    private static async Task<Dictionary<Guid, AllowanceData>> AllowancesAsync(
+        IEnumerable<Guid> allowanceIds, ICrudRelatedData related, CancellationToken ct)
+    {
+        var ids = allowanceIds.Distinct().ToArray();
+        var allowances = await related.ToListAsync(related.Query<TaxAllowanceItem>()
+            .Where(e => ids.Contains(e.Id))
+            .Select(e => new { e.Id, e.AllowanceName, e.Amount }), ct);
+        return allowances.ToDictionary(e => e.Id, e => new AllowanceData(e.AllowanceName, e.Amount));
+    }
+
+    private record AllowanceData(string Name, decimal? Limit);
 }
 
 public record TaxExemptionListItem(
@@ -361,8 +419,17 @@ public sealed class TaxExemptionSpec
         e => new TaxExemptionListItem(e.Id,
             e.DoctorCode == null ? null : e.DoctorCode.Code,
             e.DoctorCode == null ? null : e.DoctorCode.DisplayNameTh,
-            e.DoctorCode == null || e.DoctorCode.Doctor == null ? null : e.DoctorCode.Doctor.TaxId,
+            null,
             e.TaxYear, e.IsExempt, e.Status);
+
+    public override async Task<IReadOnlyList<TaxExemptionListItem>> EnrichListAsync(
+        IReadOnlyList<TaxExemptionListItem> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var data = await TaxDoctorData.ForTaxExemptionAsync(items.Select(e => e.Id), related, ct);
+        return items.Select(e => data.TryGetValue(e.Id, out var doctor)
+            ? e with { DoctorCode = doctor.Code, DoctorName = doctor.Name, TaxId = doctor.TaxId }
+            : e).ToList();
+    }
 
     public override Expression<Func<DfTaxExemption, TaxExemptionDetail>> DetailProjection =>
         e => new TaxExemptionDetail(e.Id, e.DoctorCodeId, e.TaxYear, e.IsExempt, e.Status,
@@ -389,17 +456,12 @@ public sealed class TaxExemptionSpec
         if (r.Filter("isExempt") is { } exempt && bool.TryParse(exempt, out var x))
             q = q.Where(e => e.IsExempt == x);
 
-        if (!string.IsNullOrWhiteSpace(r.Q))
-        {
-            var text = r.Q.Trim();
-            q = q.Where(e => e.DoctorCode != null &&
-                (e.DoctorCode.Code.Contains(text) || e.DoctorCode.DisplayNameTh.Contains(text) ||
-                 (e.DoctorCode.Doctor != null && e.DoctorCode.Doctor.TaxId != null &&
-                  e.DoctorCode.Doctor.TaxId.Contains(text))));
-        }
-
         return q;
     }
+
+    public override Task<IQueryable<DfTaxExemption>> PrepareListQueryAsync(
+        IQueryable<DfTaxExemption> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct) => TaxDoctorData.ApplySearchAsync(query, request, related, ct);
 
     public override void Apply(DfTaxExemption e, TaxExemptionInput input, bool isCreate)
     {
@@ -438,3 +500,70 @@ public sealed class TaxExemptionSpec
     ];
 }
 
+internal record TaxDoctorInfo(string Code, string Name, string? TaxId);
+
+internal static class TaxDoctorData
+{
+    public static async Task<IQueryable<DfTaxDeduction>> ApplySearchAsync(
+        IQueryable<DfTaxDeduction> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        var codeIds = await MatchingCodeIdsAsync(request, related, ct);
+        return codeIds is null ? query : query.Where(e => codeIds.Contains(e.DoctorCodeId));
+    }
+
+    public static async Task<IQueryable<DfTaxExemption>> ApplySearchAsync(
+        IQueryable<DfTaxExemption> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        var codeIds = await MatchingCodeIdsAsync(request, related, ct);
+        return codeIds is null ? query : query.Where(e => codeIds.Contains(e.DoctorCodeId));
+    }
+
+    private static async Task<Guid[]?> MatchingCodeIdsAsync(ListRequest request,
+        ICrudRelatedData related, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Q)) return null;
+        var text = request.Q.Trim();
+        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => e.TaxId != null && e.TaxId.Contains(text)).Select(e => e.Id), ct);
+        return [.. await related.ToListAsync(related.Query<DoctorCode>()
+            .Where(e => e.Code.Contains(text) || e.DisplayNameTh.Contains(text) || doctorIds.Contains(e.DoctorId))
+            .Select(e => e.Id), ct)];
+    }
+
+    public static Task<Dictionary<Guid, TaxDoctorInfo>> ForHospitalPaidTaxAsync(
+        IEnumerable<Guid> ids, ICrudRelatedData related, CancellationToken ct) =>
+        LoadAsync(related.Query<DfHospitalPaidTax>().Where(e => ids.Contains(e.Id))
+            .Select(e => new TaxDoctorLink(e.Id, e.DoctorCodeId)), related, ct);
+
+    public static Task<Dictionary<Guid, TaxDoctorInfo>> ForTaxDeductionAsync(
+        IEnumerable<Guid> ids, ICrudRelatedData related, CancellationToken ct) =>
+        LoadAsync(related.Query<DfTaxDeduction>().Where(e => ids.Contains(e.Id))
+            .Select(e => new TaxDoctorLink(e.Id, e.DoctorCodeId)), related, ct);
+
+    public static Task<Dictionary<Guid, TaxDoctorInfo>> ForTaxExemptionAsync(
+        IEnumerable<Guid> ids, ICrudRelatedData related, CancellationToken ct) =>
+        LoadAsync(related.Query<DfTaxExemption>().Where(e => ids.Contains(e.Id))
+            .Select(e => new TaxDoctorLink(e.Id, e.DoctorCodeId)), related, ct);
+
+    private static async Task<Dictionary<Guid, TaxDoctorInfo>> LoadAsync(
+        IQueryable<TaxDoctorLink> linksQuery, ICrudRelatedData related, CancellationToken ct)
+    {
+        var links = await related.ToListAsync(linksQuery, ct);
+        var codeIds = links.Select(e => e.DoctorCodeId).Distinct().ToArray();
+        var codes = await related.ToListAsync(related.Query<DoctorCode>()
+            .Where(e => codeIds.Contains(e.Id))
+            .Select(e => new { e.Id, e.DoctorId, e.Code, e.DisplayNameTh }), ct);
+        var doctorIds = codes.Select(e => e.DoctorId).Distinct().ToArray();
+        var doctors = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => doctorIds.Contains(e.Id)).Select(e => new { e.Id, e.TaxId }), ct);
+        var taxIds = doctors.ToDictionary(e => e.Id, e => e.TaxId);
+        var infoByCode = codes.ToDictionary(e => e.Id,
+            e => new TaxDoctorInfo(e.Code, e.DisplayNameTh, taxIds.GetValueOrDefault(e.DoctorId)));
+        return links.Where(e => infoByCode.ContainsKey(e.DoctorCodeId))
+            .ToDictionary(e => e.Id, e => infoByCode[e.DoctorCodeId]);
+    }
+
+    private record TaxDoctorLink(Guid Id, Guid DoctorCodeId);
+}

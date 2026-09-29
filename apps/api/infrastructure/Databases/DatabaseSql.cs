@@ -8,8 +8,12 @@ public static class DatabaseSql
     public static string Rewrite(string sql, NpgsqlConnection connection)
     {
         var searchPath = new NpgsqlConnectionStringBuilder(connection.ConnectionString).SearchPath?.Split(',', StringSplitOptions.TrimEntries);
-        if (searchPath is not { Length: 2 }) return sql;
-        return Rewrite(sql, searchPath[1], searchPath[0]);
+        return searchPath switch
+        {
+            { Length: 1 } => Rewrite(sql, searchPath[0], searchPath[0]),
+            { Length: 2 } => Rewrite(sql, searchPath[1], searchPath[0]),
+            _ => sql
+        };
     }
 
     public static string Rewrite(string sql, string coreSchema, string buSchema)

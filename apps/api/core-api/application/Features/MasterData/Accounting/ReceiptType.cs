@@ -3,6 +3,7 @@ using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Ida.Domain.Core;
 
 namespace Ida.Application.Features.MasterData.Accounting;
 
@@ -55,8 +56,24 @@ public sealed class ReceiptTypeSpec
 
     public override Expression<Func<MstReceiptType, ReceiptTypeListItem>> ListProjection =>
         e => new ReceiptTypeListItem(e.Id, e.Code, e.NameTh, e.NameEn, e.PaymentForm,
-            e.Bank == null ? null : e.Bank.Code,
+            null,
             e.IsCharged, e.VatPercent, e.Status);
+
+    public override async Task<IReadOnlyList<ReceiptTypeListItem>> EnrichListAsync(
+        IReadOnlyList<ReceiptTypeListItem> items, ICrudRelatedData related, CancellationToken ct)
+    {
+        var ids = items.Select(e => e.Id).ToArray();
+        var links = await related.ToListAsync(related.Query<MstReceiptType>()
+            .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.BankId }), ct);
+        var bankIds = links.Where(e => e.BankId != null).Select(e => e.BankId!.Value).Distinct().ToArray();
+        var banks = await related.ToListAsync(related.Query<MstBank>()
+            .Where(e => bankIds.Contains(e.Id)).Select(e => new { e.Id, e.Code }), ct);
+        var codes = banks.ToDictionary(e => e.Id, e => e.Code);
+        var linkById = links.ToDictionary(e => e.Id, e => e.BankId);
+        return items.Select(e => linkById.TryGetValue(e.Id, out var bankId) && bankId is { } id
+            ? e with { BankCode = codes.GetValueOrDefault(id) }
+            : e).ToList();
+    }
 
     public override Expression<Func<MstReceiptType, ReceiptTypeDetail>> DetailProjection =>
         e => new ReceiptTypeDetail(e.Id, e.Code, e.NameTh, e.NameEn, e.BankId, e.PaymentForm,
@@ -162,4 +179,3 @@ public sealed class ReceiptTypeSpec
         _ => form.ToString(),
     };
 }
-

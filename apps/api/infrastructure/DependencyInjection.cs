@@ -39,6 +39,7 @@ public static class DependencyInjection
 
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IQueryExecutor, EfQueryExecutor>();
+        services.AddScoped<ICrudRelatedData, CrudRelatedData>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         services.AddScoped<IReferenceGuard, ReferenceGuard>();
@@ -47,9 +48,9 @@ public static class DependencyInjection
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<IIngestConfigurationStore>(provider =>
-            new IngestConfigurationStore(GetRequestSource(provider)));
+            new IngestConfigurationStore(GetRequestSource(provider), provider.GetRequiredService<DatabaseRegistry>()));
         services.AddScoped<IIngestMonitoringStore>(provider =>
-            new IngestMonitoringStore(GetRequestSource(provider)));
+            new IngestMonitoringStore(GetRequestSource(provider), provider.GetRequiredService<DatabaseRegistry>()));
         services.AddScoped<IMockIngestRunner, MockIngestRunner>();
 
         return services;

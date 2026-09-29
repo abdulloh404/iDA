@@ -28,7 +28,7 @@ builder.Configuration.AddCommandLine(args);
 if (args.Contains("--migrate-databases"))
 {
     using var registry = new DatabaseRegistry(builder.Configuration);
-    await new DatabaseProvisioner(builder.Configuration, registry).InitializeAsync();
+    await new DatabaseProvisioner(registry).InitializeAsync();
     Console.WriteLine("Core and registered BU schemas are ready.");
     return;
 }

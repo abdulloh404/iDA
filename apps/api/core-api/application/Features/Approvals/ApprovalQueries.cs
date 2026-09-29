@@ -2,13 +2,15 @@ using System.Linq.Expressions;
 using Ida.Application.Common;
 using Ida.Domain.Bu;
 using Ida.Domain.Common;
+using Ida.Domain.Core;
 
 namespace Ida.Application.Features.Approvals;
 
 public class ListApprovalRequestsHandler(
     IRepository<DoctorApprovalRequest> repo,
     IQueryExecutor exec,
-    ICurrentUser user)
+    ICurrentUser user,
+    ICrudRelatedData related)
     : IQueryHandler<ListApprovalRequestsQuery, PagedResult<ApprovalRequestListItem>>
 {
     public async Task<PagedResult<ApprovalRequestListItem>> Handle(
@@ -17,6 +19,7 @@ public class ListApprovalRequestsHandler(
         var r = query.Request;
         var q = ApprovalQuery.Scope(repo.Query(), query.Scope, user);
         q = ApprovalQuery.Filter(q, r);
+        q = await ApprovalQuery.ApplySearchAsync(q, r, related, ct);
 
         var total = await exec.CountAsync(q, ct);
 
@@ -25,6 +28,7 @@ public class ListApprovalRequestsHandler(
 
         var rows = await exec.ToListAsync(
             q.Skip(r.Skip).Take(r.PageSize).Select(ApprovalQuery.ToListRow), ct);
+        rows = await ApprovalQuery.EnrichDoctorsAsync(rows, related, ct);
 
         var items = rows.Select(ApprovalQuery.ToListItem).ToList();
         return new PagedResult<ApprovalRequestListItem>(items, r.Page, r.PageSize, total);
@@ -35,7 +39,8 @@ public class GetApprovalRequestHandler(
     IRepository<DoctorApprovalRequest> repo,
     IRepository<DoctorApprovalStep> steps,
     IQueryExecutor exec,
-    ICurrentUser user)
+    ICurrentUser user,
+    ICrudRelatedData related)
     : IQueryHandler<GetApprovalRequestQuery, ApprovalRequestDetail>
 {
     public async Task<ApprovalRequestDetail> Handle(GetApprovalRequestQuery query,
@@ -44,6 +49,7 @@ public class GetApprovalRequestHandler(
         var row = await exec.FirstOrDefaultAsync(
             repo.Query().Where(e => e.Id == query.Id).Select(ApprovalQuery.ToDetailRow), ct)
             ?? throw ApprovalQuery.NotFound();
+        row = (await ApprovalQuery.EnrichDoctorsAsync([row], related, ct))[0];
 
         var stepRows = await exec.ToListAsync(
             steps.Query().Where(s => s.RequestId == query.Id)
@@ -126,17 +132,37 @@ internal static class ApprovalQuery
         if (r.Filter("requestedTo") is { } to && DateTimeOffset.TryParse(to, out var t))
             query = query.Where(e => e.RequestedAt < t.AddDays(1));
 
-        if (!string.IsNullOrWhiteSpace(r.Q))
-        {
-            var q = r.Q.Trim();
-            query = query.Where(e =>
-                e.RequestNo.Contains(q) ||
-                e.RequestedBy.Contains(q) ||
-                (e.Doctor != null &&
-                 (e.Doctor.FirstNameTh.Contains(q) || e.Doctor.LastNameTh.Contains(q))));
-        }
-
         return query;
+    }
+
+    public static async Task<IQueryable<DoctorApprovalRequest>> ApplySearchAsync(
+        IQueryable<DoctorApprovalRequest> query, ListRequest request, ICrudRelatedData related,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Q)) return query;
+
+        var text = request.Q.Trim();
+        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => e.FirstNameTh.Contains(text) || e.LastNameTh.Contains(text))
+            .Select(e => e.Id), ct);
+        return query.Where(e => e.RequestNo.Contains(text) || e.RequestedBy.Contains(text) ||
+            (e.DoctorId != null && doctorIds.Contains(e.DoctorId.Value)));
+    }
+
+    public static async Task<List<ApprovalRow>> EnrichDoctorsAsync(List<ApprovalRow> rows,
+        ICrudRelatedData related, CancellationToken ct)
+    {
+        var doctorIds = rows.Where(e => e.DoctorId != null).Select(e => e.DoctorId!.Value)
+            .Distinct().ToArray();
+        if (doctorIds.Length == 0) return rows;
+
+        var doctors = await related.ToListAsync(related.Query<Doctor>()
+            .Where(e => doctorIds.Contains(e.Id))
+            .Select(e => new { e.Id, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var names = doctors.ToDictionary(e => e.Id, e => e.Name);
+        return rows.Select(e => e.DoctorId is { } id && names.TryGetValue(id, out var name)
+            ? e with { DoctorName = name }
+            : e).ToList();
     }
 
     public static IQueryable<DoctorApprovalRequest> Sort(
@@ -161,7 +187,7 @@ internal static class ApprovalQuery
     public static readonly Expression<Func<DoctorApprovalRequest, ApprovalRow>> ToListRow =
         e => new ApprovalRow(e.Id, e.RequestNo, e.RequestType, e.TargetTable, e.TargetId,
             e.DoctorId,
-            e.Doctor == null ? null : e.Doctor.FirstNameTh + " " + e.Doctor.LastNameTh,
+            null,
             string.Empty, e.RequestedBy, e.RequestedAt, e.UpdatedAt, e.ClosedAt,
             e.CurrentStatus,
             e.Steps.Where(s => s.Action == null).OrderBy(s => s.StepSeq)
@@ -170,7 +196,7 @@ internal static class ApprovalQuery
     public static readonly Expression<Func<DoctorApprovalRequest, ApprovalRow>> ToDetailRow =
         e => new ApprovalRow(e.Id, e.RequestNo, e.RequestType, e.TargetTable, e.TargetId,
             e.DoctorId,
-            e.Doctor == null ? null : e.Doctor.FirstNameTh + " " + e.Doctor.LastNameTh,
+            null,
             e.Payload, e.RequestedBy, e.RequestedAt, e.UpdatedAt, e.ClosedAt,
             e.CurrentStatus,
             e.Steps.Where(s => s.Action == null).OrderBy(s => s.StepSeq)
@@ -190,4 +216,3 @@ internal static class ApprovalQuery
         return row.DoctorName is null ? $"{verb}{what}" : $"{verb}{what} — {row.DoctorName}";
     }
 }
-

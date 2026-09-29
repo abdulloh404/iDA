@@ -80,7 +80,7 @@ using var registry = new DatabaseRegistry(config);
 
 if (command == "install")
 {
-    await new DatabaseProvisioner(config, registry).InitializeAsync(CancellationToken.None);
+    await new DatabaseProvisioner(registry).InitializeAsync(CancellationToken.None);
     Console.WriteLine("Core and branch databases initialized from the database registry.");
     return;
 }

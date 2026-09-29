@@ -30,6 +30,13 @@ public interface IQueryExecutor
 
 }
 
+public interface ICrudRelatedData
+{
+    IQueryable<TEntity> Query<TEntity>() where TEntity : class;
+    Task<List<T>> ToListAsync<T>(IQueryable<T> query, CancellationToken ct);
+    Task<T?> FirstOrDefaultAsync<T>(IQueryable<T> query, CancellationToken ct);
+}
+
 public interface IUnitOfWork
 {
     Task SaveChangesAsync(CancellationToken ct);
@@ -131,4 +138,3 @@ public interface IRequestContext
     string? UserAgent { get; }
     string? TraceId { get; }
 }
-
