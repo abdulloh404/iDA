@@ -11,7 +11,7 @@
       "cache": false,
       "outputs": ["{projectRoot}/rendered.yaml"],
       "options": {
-        "command": "kubectl kustomize infrastructure/kubernetes -o infrastructure/rendered.yaml",
+        "command": "node tools/kube-render.mjs --output infrastructure/rendered.yaml",
         "cwd": "."
       }
     },
@@ -19,7 +19,7 @@
       "executor": "nx:run-commands",
       "cache": false,
       "options": {
-        "command": "kubectl kustomize infrastructure/kubernetes",
+        "command": "node tools/kube-render.mjs",
         "cwd": "."
       }
     },

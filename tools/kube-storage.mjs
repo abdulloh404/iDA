@@ -1,10 +1,11 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import { configuredNamespaces } from './kube-namespaces.mjs';
+import { localStorageUser, renderKubernetes } from './kube-render.mjs';
 
 const workspaceRoot = fileURLToPath(new URL('../', import.meta.url));
 const statefulSetTemplate = 'go-template={{if eq .kind "StatefulSet"}}{{.metadata.namespace}}{{"\\t"}}{{.metadata.name}}{{"\\n"}}{{end}}';
@@ -35,13 +36,14 @@ function getResource(context, kind, name, namespace, waitForCreation = false) {
   }
 }
 
-function storageRoot() {
+function storageRoot(user) {
   const envPath = join(workspaceRoot, '.env');
   const values = { ...(existsSync(envPath) ? parseEnv(readFileSync(envPath, 'utf8')) : {}), ...process.env };
   const configured = values.KUBE_STORAGE_ROOT || '/var/lib/ida/storage';
-  const root = resolve(configured);
-  if (!isAbsolute(configured) || !root.startsWith('/var/lib/ida/')) {
-    throw new Error('KUBE_STORAGE_ROOT must be a dedicated absolute directory under /var/lib/ida/, such as /var/lib/ida/storage.');
+  const expanded = configured.startsWith('~/') ? join(user.homedir, configured.slice(2)) : configured;
+  const root = resolve(expanded);
+  if (!isAbsolute(expanded) || root === dirname(root) || root === resolve(user.homedir)) {
+    throw new Error('KUBE_STORAGE_ROOT must be a dedicated absolute directory or a path under ~/, such as /var/lib/ida/storage.');
   }
   return root;
 }
@@ -63,6 +65,37 @@ function directory(path) {
   }
 }
 
+function userDirectory(path, user) {
+  const info = directory(path);
+  if (info && (info.uid !== user.uid || info.gid !== user.gid || (info.mode & 0o700) !== 0o700)) {
+    throw new Error(`Storage directory ${path} must be owned and accessible by ${user.username} (${user.uid}:${user.gid}); found ${info.uid}:${info.gid}. Choose a fresh KUBE_STORAGE_ROOT owned by this user. Existing data was not changed.`);
+  }
+  return info;
+}
+
+export function checkLocalStorage(context) {
+  const user = localStorageUser();
+  const root = storageRoot(user);
+  userDirectory(root, user);
+  const namespaces = new Set(configuredNamespaces().map(({ name }) => name));
+  const existingVolumes = JSON.parse(kubectl(context, ['get', 'pv', '-o', 'json'])).items;
+  for (const volume of existingVolumes) {
+    if (volume.metadata.labels?.['ida.io/storage'] !== 'local') continue;
+    const claim = volume.spec.claimRef;
+    if (!namespaces.has(claim?.namespace)) continue;
+    const expectedPath = join(root, claim.namespace, claim.name);
+    if (volume.spec.local?.path !== expectedPath) {
+      throw new Error(`PV ${volume.metadata.name} still uses ${volume.spec.local?.path}; the configured path for ${user.username} is ${expectedPath}. Remove the old deployment and PV before creating fresh storage at this path. npm run kube:purge removes iDA resources while keeping saved directories. No resources or data were changed.`);
+    }
+    userDirectory(dirname(expectedPath), user);
+    const info = userDirectory(expectedPath, user);
+    if (!info && volume.status?.phase === 'Bound') {
+      throw new Error(`Bound PV ${volume.metadata.name} has lost its directory ${expectedPath}; restore its data before applying.`);
+    }
+  }
+  return { user, root, namespaces, existingVolumes };
+}
+
 function localNode(context) {
   const nodes = JSON.parse(kubectl(context, ['get', 'nodes', '-o', 'json'])).items;
   const node = nodes[0];
@@ -75,9 +108,7 @@ function localNode(context) {
   return node;
 }
 
-function statefulSets(context) {
-  const namespaces = new Set(configuredNamespaces().map(({ name }) => name));
-  const manifest = kubectl(context, ['kustomize', 'infrastructure/kubernetes']);
+function statefulSets(context, manifest, namespaces) {
   const output = kubectl(context, ['create', '--dry-run=client', '--validate=false', '-f', '-', '-o', statefulSetTemplate], manifest);
   return output.split('\n').filter(Boolean).map((line) => {
     const [namespace, name, ...extra] = line.split('\t');
@@ -125,18 +156,20 @@ function matchingVolume(existing, expected) {
 export function prepareLocalStorage({ restoreExisting = true } = {}) {
   const context = run('kubectl', ['config', 'current-context']);
   if (!context) throw new Error('kubectl has no current context.');
-  const root = storageRoot();
-  directory(root);
   const node = localNode(context);
-  const applied = kubectl(context, ['apply', '-k', 'infrastructure/kubernetes']);
+  const { user, root, namespaces, existingVolumes } = checkLocalStorage(context);
+  const manifest = renderKubernetes(user);
+  const applied = kubectl(context, ['apply', '-f', '-'], manifest);
   if (applied) console.log(applied);
-  const existingVolumes = JSON.parse(kubectl(context, ['get', 'pv', '-o', 'json'])).items;
   const plans = [];
   const rows = [];
 
-  for (const workload of statefulSets(context)) {
+  for (const workload of statefulSets(context, manifest, namespaces)) {
     const { name, namespace } = workload.metadata;
     const security = workload.spec.template.spec.securityContext;
+    if (security?.runAsUser !== user.uid || security?.runAsGroup !== user.gid || security?.fsGroup !== user.gid) {
+      throw new Error(`StatefulSet ${namespace}/${name} must use the storage owner's UID/GID ${user.uid}:${user.gid}. Render it with npm run kube:render.`);
+    }
     for (let ordinal = workload.spec.ordinals?.start ?? 0; ordinal < (workload.spec.ordinals?.start ?? 0) + (workload.spec.replicas ?? 1); ordinal++) {
       for (const template of workload.spec.volumeClaimTemplates ?? []) {
         const claimName = `${template.metadata.name}-${name}-${ordinal}`;
@@ -148,9 +181,6 @@ export function prepareLocalStorage({ restoreExisting = true } = {}) {
         if (claim.status?.phase !== 'Pending' || claim.spec.storageClassName || claim.spec.selector || claim.spec.dataSource || claim.spec.dataSourceRef || (claim.spec.volumeMode ?? 'Filesystem') !== 'Filesystem' || JSON.stringify(claim.spec.accessModes) !== '["ReadWriteOnce"]') {
           throw new Error(`PVC ${namespace}/${claimName} must be Pending, classless, ReadWriteOnce and Filesystem without a selector or data source. It was not changed.`);
         }
-        if (![security?.runAsUser, security?.runAsGroup].every((id) => Number.isSafeInteger(id) && id > 0)) {
-          throw new Error(`StatefulSet ${namespace}/${name} needs explicit non-root runAsUser/runAsGroup for local directory ownership.`);
-        }
         const path = join(root, namespace, claimName);
         const expected = volumeFor(claim, path, node);
         const existing = existingVolumes.find(({ metadata }) => metadata.name === expected.metadata.name);
@@ -159,29 +189,35 @@ export function prepareLocalStorage({ restoreExisting = true } = {}) {
         if (existingVolumes.some((volume) => volume.metadata.name !== expected.metadata.name && (volume.spec.local?.path === path || volume.spec.claimRef?.uid === claim.metadata.uid))) {
           throw new Error(`Another PV already uses ${path} or PVC ${namespace}/${claimName}; refusing to create overlapping storage.`);
         }
-        const info = directory(path);
+        userDirectory(dirname(path), user);
+        const info = userDirectory(path, user);
         if (info && !existing && !restoreExisting) throw new Error(`Storage directory ${path} already exists without its matching PV. Run npm run kube:restore to reuse the saved data.`);
-        if (info && (info.uid !== security.runAsUser || info.gid !== security.runAsGroup || (info.mode & 0o700) !== 0o700)) throw new Error(`Existing directory ${path} has different ownership/permissions; it was not changed.`);
         if (!info && existing?.status?.phase === 'Bound') throw new Error(`Bound PV ${existing.metadata.name} has lost its directory ${path}; restore its data manually instead of creating empty storage.`);
-        plans.push({ volume: expected, existing, path, info, uid: security.runAsUser, gid: security.runAsGroup });
+        plans.push({ volume: expected, existing, path, info });
         rows.push({ Namespace: namespace, PVC: claimName, PV: expected.metadata.name, Capacity: expected.spec.capacity.storage, Path: path, Status: existing ? 'Existing PV; unchanged' : info ? 'Restore saved storage' : 'Create local PV' });
       }
     }
   }
 
   if (!rows.length) throw new Error('No StatefulSet PVCs are configured in the Kubernetes manifests.');
-  console.log(`Preparing local storage on ${node.metadata.name} in context ${context}:`);
+  console.log(`Preparing local storage at ${root} as ${user.username} (${user.uid}:${user.gid}) on ${node.metadata.name} in context ${context}:`);
   console.table(rows);
-  const parentPaths = [...new Set(plans.filter(({ info }) => !info).flatMap(({ path }) => [root, dirname(path)]))].filter((path) => !directory(path));
-  if (parentPaths.length) run('sudo', ['install', '-d', '-m', '0755', '-o', '0', '-g', '0', '--', ...parentPaths], { inherit: true });
-  const owners = new Map();
-  for (const { path, info, uid, gid } of plans) {
-    if (info) continue;
-    const key = `${uid}:${gid}`;
-    if (!owners.has(key)) owners.set(key, { uid, gid, paths: [] });
-    owners.get(key).paths.push(path);
+  if (plans.some(({ info }) => !info)) {
+    try {
+      mkdirSync(root, { recursive: true, mode: 0o700 });
+    } catch (error) {
+      if (!['EACCES', 'EPERM'].includes(error.code) || directory(root)) throw error;
+      run('sudo', ['install', '-d', '-m', '0700', '-o', String(user.uid), '-g', String(user.gid), '--', root], { inherit: true });
+    }
+    userDirectory(root, user);
   }
-  for (const { uid, gid, paths } of owners.values()) run('sudo', ['install', '-d', '-m', '0700', '-o', String(uid), '-g', String(gid), '--', ...paths], { inherit: true });
+  for (const { path, info } of plans) {
+    if (info) continue;
+    mkdirSync(path, { recursive: true, mode: 0o700 });
+    userDirectory(root, user);
+    userDirectory(dirname(path), user);
+    userDirectory(path, user);
+  }
 
   // PVC เดิมไม่มี StorageClass จึงจอง classless Local PV ด้วย claim UID โดยไม่แก้ PVC/StatefulSet หรือ default ของคลัสเตอร์
   const volumes = plans.filter(({ existing }) => !existing).map(({ volume }) => volume);

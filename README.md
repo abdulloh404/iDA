@@ -209,7 +209,7 @@ Service/container ports ใช้ Web 3000 และ API 3100; Kubernetes manife
 npm run kube:apply
 ```
 
-คำสั่งนี้เรียก `kubectl apply -k infrastructure/kubernetes` โดยสร้าง/อัปเดต Core API, Web, Core DB และ RabbitMQ กลาง
+คำสั่งนี้ render manifests โดยใช้ UID/GID ของผู้รันสำหรับ DB/Queue แล้วส่งให้ `kubectl apply -f -` เพื่อสร้าง/อัปเดต Core API, Web, Core DB และ RabbitMQ กลาง
 แล้วแสดงข้อมูลเชื่อมต่อฐานข้อมูลทุก BU จาก cluster โดยไม่รอให้ Pods พร้อมใช้งาน
 พร้อม namespace `bu01`–`bu03` ซึ่งแต่ละ BU มี:
 
@@ -329,6 +329,12 @@ NetworkPolicy ต้องมี CNI ที่รองรับจึงจะ�
 KUBE_STORAGE_ROOT=/var/lib/ida/storage
 ```
 
+หากไม่กำหนดค่านี้ จะใช้ `/var/lib/ida/storage` โดยให้ผู้รันเป็นเจ้าของโฟลเดอร์
+รองรับ `~/...` และ absolute path ให้รันคำสั่งด้วยบัญชีปกติ ไม่ใช้ `sudo npm ...`
+`kube:render`, `kube:apply`, `kube:storage` และ `kube:restore` ใช้ UID/GID จริงของบัญชีเดียวกัน
+PostgreSQL ทุก BU/Core และ RabbitMQ ใช้ UID/GID นี้ รวมถึง `fsGroup` จึงสร้างไฟล์ข้อมูลเป็นของผู้รันทั้งหมด
+ให้ใช้ scripts เหล่านี้แทนการ apply base manifests โดยตรง เพื่อเติม UID/GID ก่อน deploy
+
 สำหรับระบบที่ apply แล้วและ DB ยัง Pending ให้รันจาก `project/`:
 
 ```sh
@@ -340,9 +346,12 @@ npm run kube:db-info
 `kube:storage` อ่าน StatefulSets จาก manifests และขนาด/ชื่อ PVC ที่ deploy จริง ไม่ฝังรายชื่อ BU
 ตรวจว่าเป็น Linux cluster ที่มี Node เดียว พร้อมใช้งาน และ hostname ตรงกับเครื่องที่รันคำสั่ง
 สร้างเฉพาะ Local PV สำหรับ PVC ที่ Pending และไม่มี StorageClass โดยจองกับ namespace/name/UID ของ PVC นั้น
-ตั้ง node affinity ไป Node เครื่องนี้และ reclaim policy เป็น `Retain`; ไม่แก้ PVC, StatefulSet templates หรือ default StorageClass
-PVC ที่ Bound อยู่แล้วจะไม่ถูกแก้ และจะหยุดหากพบ PV ที่ถูกจองไว้เดิมหรือโฟลเดอร์ที่มีอยู่โดยไม่มี PV ที่ตรงกัน
-ก่อนสร้างโฟลเดอร์จะตรวจว่าไม่มี symlink; ใช้ `sudo install` เฉพาะการสร้างโฟลเดอร์ใหม่พร้อม ownership ตาม StatefulSet
+ตั้ง node affinity ไป Node เครื่องนี้และ reclaim policy เป็น `Retain`; คง PVC และ default StorageClass เดิม
+PVC ที่ Bound อยู่แล้วจะไม่ถูกแก้; ก่อน apply จะตรวจ path และ UID/GID ของ Local PV เดิมให้ตรงกับผู้รัน
+ก่อนสร้างโฟลเดอร์จะตรวจว่าไม่มี symlink แล้วสร้างด้วยสิทธิ์ผู้รันและ mode `0700`
+หากสร้าง `KUBE_STORAGE_ROOT` ใต้ system directory ไม่ได้ จะใช้ `sudo install` เฉพาะสร้างโฟลเดอร์หลักที่ยังไม่มี พร้อมกำหนดเจ้าของเป็น UID/GID ของผู้รัน
+โฟลเดอร์ย่อยและไฟล์ DB/Queue สร้างด้วยสิทธิ์ผู้รันตามปกติ
+โฟลเดอร์เดิมที่ path/เจ้าของตรงกันนำกลับมาใช้ได้ หาก PV ยังถูกจองไว้ให้ PVC อื่นจะหยุดเพื่อให้ตรวจสอบ
 ไม่ chown/chmod ข้อมูลเดิม ไม่ลบ PVC/PV และไม่ลบ directory เพื่อแก้ปัญหา
 
 ชุดปัจจุบันได้โฟลเดอร์แยก 5 ก้อน:
@@ -358,6 +367,9 @@ PVC ที่ Bound อยู่แล้วจะไม่ถูกแก้ �
 ความจุ 10Gi/5Gi ใน PV ใช้จับคู่คำขอ PVC ไม่ใช่ disk quota หรือการแบ่ง partition
 โฟลเดอร์เหล่านี้ใช้ดิสก์ของเครื่องเดียวกัน ต้องดูพื้นที่ว่างและ backup เอง; ไม่ใช่ HA หรือ storage สำหรับ production
 หาก Node/ดิสก์เสีย DB จะเข้าถึงข้อมูลไม่ได้ การเปลี่ยน `KUBE_STORAGE_ROOT` ไม่ย้ายข้อมูลที่ Bound แล้ว
+หาก PV เดิมยังชี้ไปคนละ path กับ `KUBE_STORAGE_ROOT` หรือมีเจ้าของคนละ UID/GID คำสั่งจะหยุดก่อน apply เพื่อป้องกัน Pod ใช้สิทธิ์ไม่ตรงกับไฟล์
+เมื่อต้องการสร้างชุดใหม่ ให้ลบทรัพยากรเก่าด้วย `npm run kube:purge` แล้วเตรียม Secrets/Storage ใหม่; โฟลเดอร์ข้อมูลเก่าจะยังอยู่ให้ลบภายหลัง
+หากต้องการเก็บข้อมูลเดิม ให้ย้ายและเปลี่ยนเจ้าของข้อมูลขณะที่ workloads หยุดอยู่ก่อนใช้ `kube:restore`
 หากขั้นตอนล้มเหลว บางโฟลเดอร์/PV อาจถูกสร้างแล้วและจะถูกเก็บไว้ให้ตรวจ ไม่ล้างข้อมูลอัตโนมัติ
 Local PVs สร้างจาก Node/PVC จริงตอนรัน `kube:storage` ไม่อยู่ใน output ของ `kube:render`
 
@@ -427,9 +439,8 @@ npm run kube:purge
 ตรวจ role และ BU label ก่อนลบ แล้วลบ namespaces ที่พบพร้อมทุกอย่างภายใน รวมทั้ง Secrets, Workers, DB, RabbitMQ และ PVC
 จึงครอบคลุม BU ที่เพิ่มภายหลังหรือ BU เก่าที่ยังอยู่ใน cluster แม้ไม่อยู่ใน manifests ปัจจุบัน
 **ข้อมูลใน PVC อาจสูญหายถาวร**; PV/ที่เก็บข้อมูลจริงจะถูกจัดการตาม reclaim policy ของแต่ละ PV
-Local PV ที่สร้างด้วย `kube:storage` ใช้ `Retain`: purge ไม่ลบ PV หรือโฟลเดอร์ `/var/lib/ida/storage`
-เมื่อ PVC ถูกลบ PV จะเป็น Released และยังจอง UID ของ PVC เดิมไว้ จึงต้องตรวจข้อมูล/วางแผน recovery ก่อนใช้กับ PVC ใหม่
-`kube:storage` ไม่ล้าง claimRef หรือย้ายข้อมูลเก่ามาผูกกับ PVC ใหม่ให้อัตโนมัติ
+Local PV ที่สร้างด้วย `kube:storage` ใช้ `Retain`: purge ลบ PV หลังลบ namespaces แต่เก็บโฟลเดอร์ใต้ `KUBE_STORAGE_ROOT` และข้อมูลทั้งหมดไว้
+`kube:storage`/`kube:restore` สร้าง PV ใหม่ให้โฟลเดอร์ที่ชื่อและ UID/GID ตรงกับผู้รันได้ โดยไม่ล้าง claimRef ของ PV ที่ยังมีอยู่
 หาก namespace มีทรัพยากรอื่นเพิ่มเติม ทรัพยากรเหล่านั้นจะถูกลบด้วย; `.env` และไฟล์ในเครื่องไม่ถูกลบ
 ตรวจ `kubectl config current-context` ให้ตรงกับ cluster ที่ต้องการก่อนรันคำสั่งนี้
 

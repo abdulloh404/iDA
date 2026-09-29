@@ -1,7 +1,6 @@
 FROM node:24-alpine AS dependencies
 WORKDIR /workspace
 COPY package.json package-lock.json ./
-COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci
 
 FROM dependencies AS build
@@ -19,7 +18,6 @@ ENV PORT=3000
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 webapp
 COPY package.json package-lock.json ./
-COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=build --chown=webapp:nodejs /workspace/dist/apps/web ./dist/apps/web
 COPY --chown=webapp:nodejs tools/start-web.mjs ./tools/start-web.mjs

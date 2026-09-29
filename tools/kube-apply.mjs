@@ -11,6 +11,8 @@ import {
   runningDatabasePortForward,
 } from './kube-db-info.mjs';
 import { configuredNamespaces } from './kube-namespaces.mjs';
+import { renderKubernetes } from './kube-render.mjs';
+import { checkLocalStorage } from './kube-storage.mjs';
 
 const workspaceRoot = fileURLToPath(new URL('../', import.meta.url));
 
@@ -91,9 +93,11 @@ async function startPortForward(context, stateDirectory, forward) {
 
 try {
   const context = currentContext();
-  const result = spawnSync('kubectl', ['--context', context, 'apply', '-k', 'infrastructure/kubernetes'], {
+  const { user } = checkLocalStorage(context);
+  const result = spawnSync('kubectl', ['--context', context, 'apply', '-f', '-'], {
     cwd: workspaceRoot,
-    stdio: 'inherit',
+    input: renderKubernetes(user),
+    stdio: ['pipe', 'inherit', 'inherit'],
   });
   if (result.error || result.status !== 0) {
     throw new Error(result.error?.message || `kubectl apply failed with exit code ${result.status ?? 'unknown'}.`);

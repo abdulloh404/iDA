@@ -2,6 +2,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: bu-db
+  labels:
+    ida.io/storage: local
 spec:
   serviceName: bu-db
   replicas: 1
@@ -17,9 +19,6 @@ spec:
       terminationGracePeriodSeconds: 60
       securityContext:
         runAsNonRoot: true
-        runAsUser: 999
-        runAsGroup: 999
-        fsGroup: 999
         seccompProfile:
           type: RuntimeDefault
       containers:
