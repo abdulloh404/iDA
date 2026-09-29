@@ -1,6 +1,0 @@
-@iDA.Core.Api_HostAddress = http://localhost:3100
-
-GET {{iDA.Core.Api_HostAddress}}/health
-Accept: application/json
-
-###

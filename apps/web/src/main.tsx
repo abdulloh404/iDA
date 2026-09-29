@@ -1,16 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './app/app';
-import './app/global.css';
-
-const root = document.getElementById('root');
-
-if (!root) {
-  throw new Error('The web root element is missing.');
-}
-
-createRoot(root).render(
-  <StrictMode>
+import App from './app/App';
+import './index.css';
+createRoot(document.getElementById('root')!).render(<StrictMode>
     <App />
-  </StrictMode>,
-);
+  </StrictMode>);

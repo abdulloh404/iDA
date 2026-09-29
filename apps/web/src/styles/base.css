@@ -1,0 +1,190 @@
+
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font: var(--ida-text-body);
+  color: var(--ida-color-text);
+  background: var(--ida-color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote {
+  margin: 0;
+}
+
+h1 {
+  font: var(--ida-text-h1);
+}
+h2 {
+  font: var(--ida-text-h2);
+}
+h3 {
+  font: var(--ida-text-h3);
+}
+
+a {
+  color: var(--ida-color-link);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+code,
+pre,
+kbd,
+samp {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.875em;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+
+.ida-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ida-numeric--positive {
+  color: var(--ida-color-success-text);
+}
+
+
+.ida-numeric--negative {
+  color: var(--ida-color-danger-text);
+}
+
+.ida-numeric--total {
+  font-weight: 700;
+  border-top: 2px solid var(--ida-color-divider-strong);
+}
+
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--ida-color-accent);
+  outline-offset: 1px;
+  box-shadow: var(--ida-shadow-focus);
+  border-radius: var(--ida-radius-sm);
+}
+
+.ida-text-secondary {
+  color: var(--ida-color-text-secondary);
+}
+
+.ida-text-muted {
+  color: var(--ida-color-text-muted);
+}
+
+.ida-caption {
+  font: var(--ida-text-caption);
+  color: var(--ida-color-text-secondary);
+}
+
+
+.ida-overline {
+  font: var(--ida-text-overline);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ida-color-accent-strong);
+}
+
+
+.ida-brand-bar {
+  height: 3px;
+  background: var(--ida-gradient-brand);
+}
+
+
+
+.ida-on-gradient {
+  position: relative;
+  color: var(--ida-color-text-inverse);
+  background: var(--ida-gradient-hero);
+}
+
+.ida-on-gradient > * {
+  position: relative;
+}
+
+.ida-on-gradient::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 41 82 / 0.35);
+  pointer-events: none;
+}
+
+
+.ida-text-inverse {
+  color: var(--ida-color-text-inverse);
+}
+
+.ida-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ida-color-scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--ida-color-scrollbar-thumb);
+  border-radius: var(--ida-radius-full);
+  
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--ida-color-scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}

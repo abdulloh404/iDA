@@ -1,0 +1,19 @@
+{
+  "name": "api-infrastructure",
+  "root": "apps/api/infrastructure",
+  "sourceRoot": "apps/api/infrastructure",
+  "projectType": "library",
+  "implicitDependencies": ["api-application"],
+  "tags": ["type:library", "scope:api"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": ["production", "^production", "{workspaceRoot}/apps/api/ingest-worker/Sql/*.sql", "{workspaceRoot}/apps/api/ingest-worker/Fixtures/source-fields.json"],
+      "outputs": ["{projectRoot}/bin/Release/net9.0"],
+      "options": {
+        "command": "dotnet build Ida.Infrastructure.csproj --configuration Release",
+        "cwd": "apps/api/infrastructure"
+      }
+    }
+  }
+}

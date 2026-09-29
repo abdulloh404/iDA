@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1200" preserveAspectRatio="xMidYMid slice" role="presentation">
+  <title>ภาพประกอบแถบแบรนด์ iDA</title>
+
+  
+
+  <defs>
+    
+    <linearGradient id="brand" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#00509E" />
+      <stop offset="32%" stop-color="#0A6FB8" />
+      <stop offset="64%" stop-color="#00A3E0" />
+      <stop offset="100%" stop-color="#48C774" />
+    </linearGradient>
+
+    
+    <linearGradient id="stripeFade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="1" />
+      <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <mask id="stripeMask">
+      <rect width="800" height="1200" fill="url(#stripeFade)" />
+    </mask>
+
+    
+    <radialGradient id="glow" cx="22%" cy="14%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <rect width="800" height="1200" fill="url(#brand)" />
+
+  <g mask="url(#stripeMask)" fill="#FFFFFF">
+    <rect x="0" y="0" width="14" height="1200" opacity="0.10" />
+    <rect x="26" y="0" width="6" height="1200" opacity="0.07" />
+    <rect x="44" y="0" width="18" height="1200" opacity="0.09" />
+    <rect x="74" y="0" width="4" height="1200" opacity="0.06" />
+    <rect x="90" y="0" width="10" height="1200" opacity="0.08" />
+    <rect x="114" y="0" width="22" height="1200" opacity="0.06" />
+    <rect x="148" y="0" width="6" height="1200" opacity="0.09" />
+    <rect x="166" y="0" width="12" height="1200" opacity="0.05" />
+    <rect x="192" y="0" width="4" height="1200" opacity="0.08" />
+    <rect x="210" y="0" width="16" height="1200" opacity="0.06" />
+    <rect x="240" y="0" width="8" height="1200" opacity="0.05" />
+    <rect x="262" y="0" width="20" height="1200" opacity="0.04" />
+    <rect x="296" y="0" width="5" height="1200" opacity="0.06" />
+    <rect x="316" y="0" width="14" height="1200" opacity="0.04" />
+    <rect x="346" y="0" width="7" height="1200" opacity="0.05" />
+    <rect x="368" y="0" width="18" height="1200" opacity="0.03" />
+    <rect x="400" y="0" width="6" height="1200" opacity="0.04" />
+    <rect x="424" y="0" width="11" height="1200" opacity="0.03" />
+  </g>
+
+  
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+    <path
+      d="M-60 742 C 150 640, 268 900, 470 796 C 620 718, 700 760, 880 686"
+      stroke-width="80"
+      opacity="0.07"
+    />
+    <path
+      d="M-60 960 C 180 876, 300 1084, 520 1000 C 660 946, 740 968, 880 916"
+      stroke-width="46"
+      opacity="0.05"
+    />
+  </g>
+
+  
+  <g fill="#FFFFFF" opacity="0.045">
+    <rect x="556" y="196" width="88" height="296" rx="24" />
+    <rect x="452" y="300" width="296" height="88" rx="24" />
+  </g>
+
+  <rect width="800" height="1200" fill="url(#glow)" />
+</svg>

@@ -1,0 +1,36 @@
+.ida-ingest-note { padding: var(--ida-space-4); margin-bottom: var(--ida-space-5); background: var(--ida-color-primary-soft); border: 1px solid var(--ida-color-border); border-radius: var(--ida-radius-md); }
+.ida-ingest-worker { padding: var(--ida-space-4); margin-bottom: var(--ida-space-5); border: 1px solid; border-radius: var(--ida-radius-md); }
+.ida-ingest-worker--online { background: var(--ida-color-success-soft); border-color: var(--ida-color-success); color: var(--ida-color-success-text); }
+.ida-ingest-worker--offline { background: var(--ida-color-warning-soft); border-color: var(--ida-color-warning); color: var(--ida-color-warning-text); }
+.ida-ingest-section { margin-bottom: var(--ida-space-6); }
+.ida-ingest-heading { margin-bottom: var(--ida-space-5); }
+.ida-ingest-heading h2 { margin-bottom: var(--ida-space-2); }
+.ida-ingest-schedule-form { scroll-margin-top: var(--ida-space-6); padding: var(--ida-space-5); border: 1px solid var(--ida-color-border); border-radius: var(--ida-radius-md); background: var(--ida-color-surface-2); }
+.ida-ingest-form-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ida-space-3); margin-bottom: var(--ida-space-4); }
+.ida-ingest-saved { margin-top: var(--ida-space-6); padding-top: var(--ida-space-5); border-top: 1px solid var(--ida-color-border); }
+.ida-ingest-saved h3 { margin-bottom: var(--ida-space-4); }
+.ida-ingest-row-actions { display: flex; flex-wrap: wrap; gap: var(--ida-space-2); }
+.ida-ingest-cancel-button { color: var(--ida-color-danger-text); }
+.ida-ingest-cancelled { margin-top: var(--ida-space-5); }
+.ida-ingest-cancelled summary { cursor: pointer; font: var(--ida-text-label); margin-bottom: var(--ida-space-3); }
+.ida-ingest-cancelled-list { max-height: calc(var(--ida-space-10) * 9); overflow-y: auto; }
+.ida-ingest-cancelled-actions { display: flex; flex-wrap: wrap; gap: var(--ida-space-2); margin-top: var(--ida-space-3); }
+.ida-ingest-editor { margin-top: var(--ida-space-6); padding-top: var(--ida-space-5); border-top: 1px solid var(--ida-color-border); }
+.ida-ingest-editor h3 { margin-bottom: var(--ida-space-4); }
+.ida-ingest-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: var(--ida-space-4); align-items: end; margin-bottom: var(--ida-space-4); }
+.ida-ingest-fields label:not(.ida-ingest-check) { display: grid; gap: var(--ida-space-2); font: var(--ida-text-label); }
+.ida-ingest-first-run-field { display: grid; gap: var(--ida-space-2); }
+.ida-ingest-first-run-field > label { font: var(--ida-text-label); }
+.ida-ingest-first-run-control { position: relative; }
+.ida-ingest-first-run-control > .ida-input { width: 100%; padding-right: var(--ida-space-10); }
+.ida-ingest-first-run-picker { position: absolute; top: 0; right: 0; height: 100%; width: var(--ida-space-10); display: grid; place-items: center; border: 0; background: transparent; color: var(--ida-color-text-secondary); cursor: pointer; }
+.ida-ingest-first-run-picker:focus-visible { outline: 2px solid var(--ida-color-primary); outline-offset: -2px; }
+.ida-ingest-native-picker { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ida-ingest-check { display: flex; gap: var(--ida-space-2); align-items: center; }
+.ida-ingest-domains { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: var(--ida-space-3); padding: var(--ida-space-4); margin-bottom: var(--ida-space-4); border: 1px solid var(--ida-color-border); border-radius: var(--ida-radius-md); }
+.ida-ingest-domains legend { font: var(--ida-text-label); padding: 0 var(--ida-space-2); }
+.ida-ingest-domain-toolbar { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--ida-space-3); padding-bottom: var(--ida-space-3); border-bottom: 1px solid var(--ida-color-border); }
+.ida-ingest-domain-count { color: var(--ida-color-text-secondary); font: var(--ida-text-label); }
+.ida-ingest-domain-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--ida-space-2); }
+.ida-ingest-actions { display: flex; flex-wrap: wrap; gap: var(--ida-space-3); margin-top: var(--ida-space-4); }
+.ida-ingest-schedule-form > .ida-caption { margin-top: var(--ida-space-1); }

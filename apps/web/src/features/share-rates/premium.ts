@@ -1,0 +1,300 @@
+import { shareRateScreen } from './shared';
+export const privateCaseShareScreen = shareRateScreen({
+    id: 'premium-private-case',
+    level: 'PRIVATE_CASE',
+    group: 'Premium',
+    path: '/share-rates/premium/private-case',
+    titleTh: 'ส่วนแบ่ง ระดับ Private Case',
+    searchHint: 'ค้นหารหัส Private Case หรือรายละเอียด',
+    emptyHint: 'อัตราสำหรับเคสที่คนไข้จ่ายเอง กำหนดเป็นรายรหัส Private Case',
+    withXrayExclusion: true,
+    withExclusions: true,
+    keyColumns: [
+        { key: 'privateCaseCode', header: 'รหัส Private Case', sortable: true, width: '190px' },
+        { key: 'detail', header: 'รายละเอียด' },
+        {
+            key: 'excludeXrayEkg',
+            header: 'X-ray & EKG',
+            width: '150px',
+            value: (row) => (row.excludeXrayEkg ? 'ยกเว้น' : 'คำนวณปกติ'),
+        },
+    ],
+    keyFields: [
+        { kind: 'text', name: 'privateCaseCode', label: 'รหัส Private Case', required: true },
+        { kind: 'text', name: 'detail', label: 'รายละเอียด', width: 'lg' },
+    ],
+});
+export const patientRightShareScreen = shareRateScreen({
+    id: 'premium-patient-right',
+    level: 'PATIENT_RIGHT_AR_CODE',
+    group: 'Premium',
+    path: '/share-rates/premium/patient-right',
+    titleTh: 'ส่วนแบ่ง ระดับ สิทธิ์ & AR Code',
+    searchHint: 'ค้นหารหัสแพทย์หรือรหัส Treatment',
+    emptyHint: 'อัตราตามสิทธิ์การรักษาและคู่สัญญา เว้นแพทย์หรือ Treatment ไว้ = ทุกรายการ',
+    withExclusions: true,
+    keyFilters: [
+        { kind: 'lookup', name: 'arCodeId', label: 'AR Code', resource: 'ar-codes' },
+        { kind: 'lookup', name: 'doctorCodeId', label: 'แพทย์', resource: 'doctor-codes' },
+    ],
+    keyColumns: [
+        { key: 'arCode', header: 'AR Code', width: '150px' },
+        { key: 'patientRightName', header: 'สิทธิ์คนไข้', width: '180px' },
+        {
+            key: 'doctorCode',
+            header: 'แพทย์',
+            width: '150px',
+            value: (row) => row.doctorCode ?? 'ทุกแพทย์',
+        },
+        {
+            key: 'treatmentCode',
+            header: 'Treatment',
+            width: '160px',
+            value: (row) => row.treatmentCode ?? 'ทุก Treatment',
+        },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'arCodeId',
+            label: 'AR Code',
+            resource: 'ar-codes',
+            required: true,
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'patientRightId',
+            label: 'สิทธิ์คนไข้',
+            resource: 'patient-rights',
+            emptyLabel: 'ทุกสิทธิ์',
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'doctorCodeId',
+            label: 'แพทย์',
+            resource: 'doctor-codes',
+            emptyLabel: 'ทุกแพทย์',
+        },
+        {
+            kind: 'lookup',
+            name: 'treatmentId',
+            label: 'Treatment',
+            resource: 'treatments',
+            emptyLabel: 'ทุก Treatment',
+        },
+    ],
+});
+export const packageShareScreen = shareRateScreen({
+    id: 'premium-package',
+    level: 'PACKAGE',
+    group: 'Premium',
+    path: '/share-rates/premium/package',
+    titleTh: 'ส่วนแบ่ง ระดับ Package',
+    searchHint: 'ค้นหารหัส Package หรือรายละเอียด',
+    emptyHint: 'อัตราสำหรับ Package ที่ขายเป็นชุด กำหนดเป็นรายรหัส Package',
+    withXrayExclusion: true,
+    withExclusions: true,
+    keyColumns: [
+        { key: 'packageCode', header: 'รหัส Package', sortable: true, width: '180px' },
+        { key: 'detail', header: 'รายละเอียด' },
+        {
+            key: 'excludeXrayEkg',
+            header: 'X-ray & EKG',
+            width: '150px',
+            value: (row) => (row.excludeXrayEkg ? 'ยกเว้น' : 'คำนวณปกติ'),
+        },
+    ],
+    keyFields: [
+        { kind: 'text', name: 'packageCode', label: 'รหัส Package', required: true },
+        { kind: 'text', name: 'detail', label: 'รายละเอียด', width: 'lg' },
+    ],
+});
+export const doctorTreatmentDeptShareScreen = shareRateScreen({
+    id: 'premium-doctor-treatment-dept',
+    level: 'DOCTOR_TREATMENT_DEPARTMENT',
+    group: 'Premium',
+    path: '/share-rates/premium/doctor-treatment-department',
+    titleTh: 'ส่วนแบ่ง ระดับ Doctor Treatment Department',
+    searchHint: 'ค้นหารหัสแพทย์ รหัส Treatment หรือ Location',
+    emptyHint: 'อัตราที่เจาะจงที่สุด — แพทย์คนหนึ่งทำหัตถการหนึ่งที่ Location หนึ่ง',
+    withFixAmount: true,
+    keyFilters: [
+        { kind: 'lookup', name: 'doctorCodeId', label: 'แพทย์', resource: 'doctor-codes' },
+        { kind: 'lookup', name: 'treatmentId', label: 'Treatment', resource: 'treatments' },
+    ],
+    keyColumns: [
+        { key: 'doctorCode', header: 'แพทย์', sortable: true, width: '150px' },
+        { key: 'treatmentCode', header: 'Treatment', sortable: true, width: '170px' },
+        { key: 'location', header: 'Location', width: '170px' },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'doctorCodeId',
+            label: 'รหัสแพทย์',
+            resource: 'doctor-codes',
+            required: true,
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'treatmentId',
+            label: 'รหัส Treatment',
+            resource: 'treatments',
+            required: true,
+            width: 'lg',
+        },
+        { kind: 'text', name: 'location', label: 'Location', required: true },
+    ],
+});
+export const doctorTreatmentShareScreen = shareRateScreen({
+    id: 'premium-doctor-treatment',
+    level: 'DOCTOR_TREATMENT',
+    group: 'Premium',
+    path: '/share-rates/premium/doctor-treatment',
+    titleTh: 'ส่วนแบ่ง ระดับ Doctor Treatment',
+    searchHint: 'ค้นหารหัสแพทย์หรือรหัส Treatment',
+    emptyHint: 'อัตราของแพทย์รายคน ระบุได้ทั้งราย Treatment หรือทั้ง Category',
+    withFixAmount: true,
+    keyFilters: [
+        { kind: 'lookup', name: 'doctorCodeId', label: 'แพทย์', resource: 'doctor-codes' },
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'Treatment Category',
+            resource: 'treatment-categories',
+        },
+    ],
+    keyColumns: [
+        { key: 'doctorCode', header: 'แพทย์', sortable: true, width: '150px' },
+        { key: 'treatmentCode', header: 'Treatment', sortable: true, width: '170px' },
+        { key: 'treatmentCategoryCode', header: 'Treatment Category', width: '190px' },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'doctorCodeId',
+            label: 'รหัสแพทย์',
+            resource: 'doctor-codes',
+            required: true,
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'treatmentId',
+            label: 'รหัส Treatment',
+            resource: 'treatments',
+            emptyLabel: 'ไม่ระบุ',
+            hint: 'เลือกอย่างใดอย่างหนึ่งระหว่าง Treatment กับ Treatment Category',
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'รหัส Treatment Category',
+            resource: 'treatment-categories',
+            emptyLabel: 'ไม่ระบุ',
+            width: 'lg',
+        },
+    ],
+});
+export const categoryTreatmentShareScreen = shareRateScreen({
+    id: 'premium-category-treatment',
+    level: 'CATEGORY_TREATMENT',
+    group: 'Premium',
+    path: '/share-rates/premium/category-treatment',
+    titleTh: 'ส่วนแบ่ง ระดับ Category Treatment',
+    searchHint: 'ค้นหารหัส Category หรือรหัส Treatment',
+    emptyHint: 'อัตราของ Treatment หนึ่งเมื่ออยู่ภายใต้ Category หนึ่ง',
+    withFixAmount: true,
+    keyFilters: [
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'Category',
+            resource: 'treatment-categories',
+        },
+        { kind: 'lookup', name: 'treatmentId', label: 'Treatment', resource: 'treatments' },
+    ],
+    keyColumns: [
+        { key: 'treatmentCategoryCode', header: 'Category', sortable: true, width: '180px' },
+        { key: 'treatmentCode', header: 'Treatment', sortable: true, width: '180px' },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'รหัส Category',
+            resource: 'treatment-categories',
+            required: true,
+            width: 'lg',
+        },
+        {
+            kind: 'lookup',
+            name: 'treatmentId',
+            label: 'รหัส Treatment',
+            resource: 'treatments',
+            required: true,
+            width: 'lg',
+        },
+    ],
+});
+export const treatmentShareScreen = shareRateScreen({
+    id: 'premium-treatment',
+    level: 'TREATMENT',
+    group: 'Premium',
+    path: '/share-rates/premium/treatment',
+    titleTh: 'ส่วนแบ่ง ระดับ Treatment',
+    searchHint: 'ค้นหารหัส Treatment',
+    emptyHint: 'อัตราตั้งต้นของแต่ละ Treatment ใช้เมื่อไม่มีอัตราที่เจาะจงกว่า',
+    withFixAmount: true,
+    withExclusions: true,
+    keyFilters: [
+        { kind: 'lookup', name: 'treatmentId', label: 'Treatment', resource: 'treatments' },
+    ],
+    keyColumns: [
+        { key: 'treatmentCode', header: 'Treatment', sortable: true, width: '200px' },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'treatmentId',
+            label: 'รหัส Treatment',
+            resource: 'treatments',
+            required: true,
+            width: 'lg',
+        },
+    ],
+});
+export const categoryShareScreen = shareRateScreen({
+    id: 'premium-category',
+    level: 'CATEGORY',
+    group: 'Premium',
+    path: '/share-rates/premium/category',
+    titleTh: 'ส่วนแบ่ง ระดับ Category',
+    searchHint: 'ค้นหารหัส Category',
+    emptyHint: 'อัตรากว้างที่สุด ใช้เมื่อไม่มีอัตราระดับใดตรงกับรายการนั้นเลย',
+    keyFilters: [
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'Category',
+            resource: 'treatment-categories',
+        },
+    ],
+    keyColumns: [
+        { key: 'treatmentCategoryCode', header: 'Category', sortable: true, width: '220px' },
+    ],
+    keyFields: [
+        {
+            kind: 'lookup',
+            name: 'treatmentCategoryId',
+            label: 'รหัส Category',
+            resource: 'treatment-categories',
+            required: true,
+            width: 'lg',
+        },
+    ],
+});

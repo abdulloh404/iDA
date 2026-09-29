@@ -1,0 +1,110 @@
+
+
+@import 'tailwindcss';
+
+@import './styles/tokens.css';
+@import './styles/base.css' layer(base);
+@import './styles/components.css' layer(components);
+@import './styles/layout.css' layer(components);
+
+
+@theme inline {
+  
+  --color-primary: var(--ida-color-primary);
+  --color-primary-hover: var(--ida-color-primary-hover);
+  --color-primary-active: var(--ida-color-primary-active);
+  --color-primary-soft: var(--ida-color-primary-soft);
+  --color-on-primary: var(--ida-color-on-primary);
+
+  --color-accent: var(--ida-color-accent);
+  --color-accent-strong: var(--ida-color-accent-strong);
+  --color-accent-soft: var(--ida-color-accent-soft);
+
+  --color-success: var(--ida-color-success);
+  --color-success-text: var(--ida-color-success-text);
+  --color-success-soft: var(--ida-color-success-soft);
+  --color-warning: var(--ida-color-warning);
+  --color-warning-text: var(--ida-color-warning-text);
+  --color-warning-soft: var(--ida-color-warning-soft);
+  --color-danger: var(--ida-color-danger);
+  --color-danger-text: var(--ida-color-danger-text);
+  --color-danger-soft: var(--ida-color-danger-soft);
+
+  --color-bg: var(--ida-color-bg);
+  --color-surface: var(--ida-color-surface);
+  --color-surface-2: var(--ida-color-surface-2);
+  --color-line: var(--ida-color-border);
+  --color-line-strong: var(--ida-color-border-strong);
+
+  
+  --color-ink: var(--ida-color-text);
+  --color-secondary: var(--ida-color-text-secondary);
+  --color-muted: var(--ida-color-text-muted);
+  --color-inverse: var(--ida-color-text-inverse);
+  --color-link: var(--ida-color-link);
+
+  --color-sidebar: var(--ida-color-sidebar-bg);
+  --color-sidebar-surface: var(--ida-color-sidebar-surface);
+  --color-sidebar-text: var(--ida-color-sidebar-text);
+  --color-sidebar-muted: var(--ida-color-sidebar-text-muted);
+  --color-sidebar-hover: var(--ida-color-sidebar-hover);
+  --color-sidebar-active: var(--ida-color-sidebar-active);
+
+  
+  --font-sans: var(--ida-font-family-base);
+  --font-display: var(--ida-font-family-display);
+
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.125rem;
+  --text-overline: 0.75rem;
+  --text-overline--line-height: 1rem;
+  --text-overline--font-weight: 600;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.375rem;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 600;
+  --text-body-lg: 1rem;
+  --text-body-lg--line-height: 1.625rem;
+  --text-h3: 1.125rem;
+  --text-h3--line-height: 1.625rem;
+  --text-h3--font-weight: 600;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.75rem;
+  --text-h2--font-weight: 600;
+  --text-h1: 1.5rem;
+  --text-h1--line-height: 2rem;
+  --text-h1--font-weight: 700;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-display--font-weight: 700;
+
+  
+  --radius-sm: var(--ida-radius-sm);
+  --radius-md: var(--ida-radius-md);
+  --radius-lg: var(--ida-radius-lg);
+  --radius-xl: var(--ida-radius-xl);
+  --radius-2xl: var(--ida-radius-2xl);
+
+  
+  --shadow-sm: var(--ida-shadow-sm);
+  --shadow-md: var(--ida-shadow-md);
+  --shadow-lg: var(--ida-shadow-lg);
+
+  
+  --ease-ida: var(--ida-ease);
+  --default-transition-duration: var(--ida-duration-fast);
+  --default-transition-timing-function: var(--ida-ease);
+
+  
+  --spacing-control: var(--ida-control-height);
+  --spacing-topbar: var(--ida-topbar-height);
+  --spacing-sidebar: var(--ida-sidebar-width);
+  --container-content: var(--ida-content-max-width);
+
+  
+  --breakpoint-sm: 40rem;
+  --breakpoint-md: 48rem;
+  --breakpoint-lg: 64rem;
+  --breakpoint-xl: 80rem;
+}

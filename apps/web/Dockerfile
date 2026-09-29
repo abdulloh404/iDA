@@ -6,6 +6,8 @@ RUN npm ci
 
 FROM dependencies AS build
 COPY . .
+ARG VITE_API_URL=http://localhost:3100
+ENV VITE_API_URL=$VITE_API_URL
 ENV NX_DAEMON=false
 RUN npm exec nx -- build web
 

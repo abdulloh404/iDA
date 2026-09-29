@@ -1,0 +1,17 @@
+{
+  "name": "api-domain",
+  "root": "apps/api/core-api/domain",
+  "sourceRoot": "apps/api/core-api/domain",
+  "projectType": "library",
+  "tags": ["type:library", "scope:api"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/bin/Release/net9.0"],
+      "options": {
+        "command": "dotnet build Ida.Domain.csproj --configuration Release",
+        "cwd": "apps/api/core-api/domain"
+      }
+    }
+  }
+}

@@ -8,6 +8,8 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>iDA</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>iDA ใช้ตำแหน่งของคุณเฉพาะตอนลงเวลาเข้า-ออกงาน เพื่อยืนยันว่าคุณอยู่ในพื้นที่ของโรงพยาบาล</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
