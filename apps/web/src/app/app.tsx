@@ -1,13 +1,6 @@
-/* oxlint-disable jsx-a11y/prefer-tag-over-role -- the icons below
-   are inline SVGs, which have no tag to swap the role for. */
 import styles from './page.module.css';
 
-export default function Index() {
-  /*
-   * Replace the elements below with your own.
-   *
-   * Note: The corresponding styles are in the ./index.css file.
-   */
+export default function App() {
   return (
     <div className={styles.page}>
       <div className="wrapper">
@@ -377,9 +370,9 @@ export default function Index() {
               </summary>
               <pre>
                 <span># Generate UI lib</span>
-                nx g @nx/next:library ui
+                nx g @nx/react:library libs/ui
                 <span># Add a component</span>
-                nx g @nx/next:component ui/src/lib/button
+                nx g @nx/react:component libs/ui/src/lib/button
               </pre>
             </details>
             <details>

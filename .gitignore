@@ -64,3 +64,9 @@ out
 infrastructure/rendered.yaml
 
 .nx
+
+vite.config.*.timestamp*
+
+# Dockerfile
+.dockerignore
+compose.yaml

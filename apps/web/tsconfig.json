@@ -1,7 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "preserve",
+    "jsx": "react-jsx",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
     "noEmit": true,
     "emitDeclarationOnly": false,
     "esModuleInterop": true,
@@ -12,27 +15,17 @@
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "types": ["vite/client"],
     "paths": {
       "@/*": ["./src/*"]
     },
-    "outDir": "dist",
-    "rootDir": "src",
-    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
+    "rootDir": "src"
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.js",
-    "src/**/*.jsx",
-    ".next/types/**/*.ts",
-    "index.d.ts",
-    "next-env.d.ts"
+    "src/**/*.jsx"
   ],
   "exclude": [
     "out-tsc",
@@ -41,7 +34,6 @@
     "jest.config.ts",
     "jest.config.cts",
     "src/**/*.spec.ts",
-    "src/**/*.test.ts",
-    ".next"
+    "src/**/*.test.ts"
   ]
 }

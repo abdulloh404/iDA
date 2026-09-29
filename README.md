@@ -1,6 +1,6 @@
 # iDA — Nx monorepo
 
-โครงเริ่มต้นสำหรับ Flutter (Android/iOS), Next.js และ backend .NET 9 ภายใต้ Nx
+โครงเริ่มต้นสำหรับ Flutter (Android/iOS), React + Vite และ backend .NET 9 ภายใต้ Nx
 
 ชื่อแสดงผลของระบบคือ `iDA`; package scope, Docker images, Kubernetes labels และ RabbitMQ vhost ใช้ `ida`
 ฐานข้อมูลใน config ใช้ `ida_core` และ `ida_bu01`–`ida_bu03` โดยยังไม่เปลี่ยน DB หรือข้อมูลบน PVC ที่มีอยู่
@@ -21,7 +21,7 @@ project/
 │   │   ├── lib/
 │   │   ├── android/
 │   │   └── ios/Runner/         รวม native Swift
-│   ├── web/                    Next.js frontend กลาง
+│   ├── web/                    React + Vite frontend กลาง (SPA)
 │   └── api/                    backend solution กลาง
 │       ├── iDA.sln
 │       ├── core-api/           Core API กลางหนึ่ง service
@@ -63,7 +63,7 @@ Backend อยู่ใน solution เดียว มีสอง process role
 
 | ส่วน | มีแล้ว | ยังต้องทำต่อ |
 | --- | --- | --- |
-| Web | Next.js starter + standalone Dockerfile | หน้าใช้งานและ API integration |
+| Web | React + Vite SPA + static-server Dockerfile | หน้าใช้งานและ API integration |
 | Mobile | Flutter starter, Android และ iOS/Swift | หน้าจอและ API integration |
 | Core API | .NET 9, `GET /health`, OpenAPI ใน Development | DB client, authentication, queue publisher/orchestrator, business endpoints |
 | Worker | อ่าน/ตรวจ BU config, รองรับ shutdown, Dockerfile | queue consumer, BU DB client, ตรวจ tenant ของ message, retry/DLQ, business jobs |
@@ -90,7 +90,7 @@ npm ci
 npm run build
 ```
 
-`build` เรียก Core API, Worker, Next.js, Android APK และ render Kubernetes manifests
+`build` เรียก Core API, Worker, React + Vite, Android APK และ render Kubernetes manifests
 ไปที่ `infrastructure/rendered.yaml`; การ render ใช้ไฟล์ local ไม่ติดต่อ/แก้ cluster
 
 คำสั่งรายส่วน:
@@ -118,6 +118,14 @@ Dockerfiles มีเฉพาะ Core API, Worker และ Web; Mobile ไม�
 | Web | `npm run dev:web` | `npm run start:web` |
 | Android | `npm run dev:mobile` | `npm run start:mobile` |
 | iOS | `npm run dev:ios` | `npm run start:ios` |
+
+Web ใช้ Vite สำหรับ development; `npm run build:web` ตรวจ TypeScript แล้ว build ไฟล์ static ไปที่ `dist/apps/web`
+`npm run start:web` build ผ่าน Nx ก่อนใช้ `serve` ให้บริการไฟล์ static พร้อม SPA fallback
+Docker ใช้ไฟล์ build และ server เดียวกันที่พอร์ต 3000 จึงใช้ Compose/Kubernetes เดิมได้
+Web เป็น client-side SPA ไม่มี SSR หรือ Next.js API routes; ลบ route ตัวอย่าง `/api/hello` แล้ว
+API จริงยังอยู่ใน Core API .NET ที่พอร์ต 3100 และยังไม่ได้เพิ่มการเชื่อม API ในหน้าเว็บ
+เมื่อเพิ่ม client configuration ให้ใช้ชื่อ `VITE_*` เฉพาะค่าที่เปิดเผยได้ เพราะค่าเหล่านี้ถูกฝังในไฟล์ build
+ห้ามนำ DB/Queue credentials ไปใส่ในตัวแปร `VITE_*`
 
 กำหนดพอร์ตใน `.env` โดยใช้ `.env.example` เป็นตัวอย่าง:
 
@@ -448,7 +456,7 @@ Core API/Web ใช้ ClusterIP; ยังไม่มี public Ingress/TLS �
 
 มีเฉพาะ Claude/Codex configuration และ Nx skills:
 `nx-workspace`, `nx-generate`, `nx-run-tasks`, `nx-plugins`, `nx-import`
-ยังไม่เพิ่ม skills ของ .NET, Flutter หรือ Next.js และไม่มี Nx Cloud/CI monitor อัตโนมัติ
+ยังไม่เพิ่ม skills ของ .NET, Flutter หรือ React และไม่มี Nx Cloud/CI monitor อัตโนมัติ
 
 ## References
 
@@ -464,7 +472,9 @@ Core API/Web ใช้ ClusterIP; ยังไม่มี public Ingress/TLS �
 - [Docker Compose environment interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
 - [Node.js environment file parsing](https://nodejs.org/api/environment_variables.html)
 - [Kubernetes multi-tenancy](https://kubernetes.io/docs/concepts/security/multi-tenancy/)
-- [Next.js standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output)
+- [Nx Vite plugin](https://nx.dev/docs/technologies/build-tools/vite/introduction)
+- [React application setup](https://react.dev/learn/build-a-react-app-from-scratch)
+- [Vite static deployment](https://vite.dev/guide/static-deploy.html)
 - [.NET watch](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-watch)
 - [Flutter build modes](https://docs.flutter.dev/testing/build-modes)
 - [Flutter iOS setup](https://docs.flutter.dev/platform-integration/ios/setup)
