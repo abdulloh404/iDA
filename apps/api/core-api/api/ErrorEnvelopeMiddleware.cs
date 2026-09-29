@@ -17,7 +17,6 @@ public class ErrorEnvelopeMiddleware(RequestDelegate next,
                 {
                     401 => ("unauthorized", "กรุณาเข้าสู่ระบบใหม่"),
                     403 => ("forbidden", "คุณไม่มีสิทธิ์ใช้งานเมนูนี้"),
-
                     400 => ("malformed_request", "รูปแบบข้อมูลที่ส่งมาไม่ถูกต้อง"),
                     405 => ("method_not_allowed", "ไม่รองรับการเรียกใช้รูปแบบนี้"),
                     _ => default,
@@ -27,13 +26,19 @@ public class ErrorEnvelopeMiddleware(RequestDelegate next,
                     await WriteAsync(ctx, ctx.Response.StatusCode, envelope.Item1, envelope.Item2);
             }
         }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            log.LogDebug("Request canceled: {Method} {Path} ({TraceId})", ctx.Request.Method, ctx.Request.Path, ctx.TraceIdentifier);
+            if (!ctx.Response.HasStarted)
+                ctx.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+        }
         catch (ApiException ex)
         {
             await WriteAsync(ctx, ex.Status, ex.Code, ex.Message, ex.Details);
         }
         catch (Exception ex)
         {
-            log.LogError(ex, "unhandled");
+            log.LogError(ex, "Unhandled error: {Method} {Path} ({TraceId})", ctx.Request.Method, ctx.Request.Path, ctx.TraceIdentifier);
             await WriteAsync(ctx, 500, "internal_error", "เกิดข้อผิดพลาดภายในระบบ");
         }
     }
@@ -55,4 +60,3 @@ public class ErrorEnvelopeMiddleware(RequestDelegate next,
         });
     }
 }
-

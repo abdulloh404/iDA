@@ -6,11 +6,13 @@ namespace Ida.Infrastructure.Persistence;
 
 public static class EnumMappings
 {
+    private static readonly UpperSnakeNameTranslator NameTranslator = new();
+
     public static NpgsqlDataSourceBuilder MapIdaEnums(
         this NpgsqlDataSourceBuilder builder,
         string schema = IdaDbContext.CoreSchema)
     {
-        var labels = new UpperSnakeNameTranslator();
+        var labels = NameTranslator;
 
         builder.MapEnum<RecordStatus>($"{schema}.record_status", labels);
         builder.MapEnum<ApprovalStatus>($"{schema}.approval_status", labels);
@@ -50,7 +52,7 @@ public static class EnumMappings
         this NpgsqlDbContextOptionsBuilder builder,
         string schema = IdaDbContext.CoreSchema)
     {
-        var labels = new UpperSnakeNameTranslator();
+        var labels = NameTranslator;
 
         builder.MapEnum<RecordStatus>("record_status", schema, labels);
         builder.MapEnum<ApprovalStatus>("approval_status", schema, labels);
