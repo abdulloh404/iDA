@@ -109,7 +109,7 @@ var app = builder.Build();
 
 if (args.Contains("--seed"))
 {
-    using var scope = app.Services.CreateScope();
+    await using var scope = app.Services.CreateAsyncScope();
     await scope.ServiceProvider.GetRequiredService<DatabaseSeeder>().SeedAsync();
     return;
 }

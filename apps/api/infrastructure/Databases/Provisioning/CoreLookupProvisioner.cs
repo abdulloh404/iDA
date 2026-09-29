@@ -12,7 +12,7 @@ namespace Ida.Infrastructure.Databases.Provisioning;
 
 internal sealed class CoreLookupProvisioner(IConfiguration configuration, DatabaseRegistry registry)
 {
-    private const string RegistrySchema = "registry";
+    private const string BranchSchema = "branch";
     private const string ServerName = "ida_core_registry";
 
     public async Task CreateViewsAsync(
@@ -38,7 +38,7 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
 
         var role = ProvisioningSql.Identifier(credentials.Username);
         await ProvisioningSql.ExecuteAsync(connection, transaction,
-            $"REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {ProvisioningSql.Identifier(core.SchemaName)} FROM {role}; REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {ProvisioningSql.Identifier(RegistrySchema)} FROM {role}; REVOKE ALL PRIVILEGES ON SCHEMA {ProvisioningSql.Identifier(core.SchemaName)}, {ProvisioningSql.Identifier(RegistrySchema)} FROM {role}; GRANT CONNECT ON DATABASE {ProvisioningSql.Identifier(core.DatabaseName)} TO {role}; GRANT USAGE ON SCHEMA {ProvisioningSql.Identifier(core.SchemaName)}, {ProvisioningSql.Identifier(RegistrySchema)} TO {role};",
+            $"REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {ProvisioningSql.Identifier(core.SchemaName)} FROM {role}; REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA {ProvisioningSql.Identifier(BranchSchema)} FROM {role}; REVOKE ALL PRIVILEGES ON SCHEMA {ProvisioningSql.Identifier(core.SchemaName)}, {ProvisioningSql.Identifier(BranchSchema)} FROM {role}; GRANT CONNECT ON DATABASE {ProvisioningSql.Identifier(core.DatabaseName)} TO {role}; GRANT USAGE ON SCHEMA {ProvisioningSql.Identifier(core.SchemaName)}, {ProvisioningSql.Identifier(BranchSchema)} TO {role};",
             ct);
 
         foreach (var table in tables)
@@ -52,7 +52,7 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
                 : ProvisioningSql.Identifier(column.Name)));
             if (concurrencyTables.Contains(table.Name))
                 projection += $",{ProvisioningSql.Identifier(table.Name)}.xmin AS row_version";
-            var viewName = $"{ProvisioningSql.Identifier(RegistrySchema)}.{ProvisioningSql.Identifier(view)}";
+            var viewName = $"{ProvisioningSql.Identifier(BranchSchema)}.{ProvisioningSql.Identifier(view)}";
             var tableName = $"{ProvisioningSql.Identifier(core.SchemaName)}.{ProvisioningSql.Identifier(table.Name)}";
             var columnGrant = string.Join(",", safeColumns.Select(column => ProvisioningSql.Identifier(column.Name)));
             var sql = $"CREATE OR REPLACE VIEW {viewName} AS SELECT {projection} FROM {tableName}; GRANT SELECT ({columnGrant}) ON TABLE {tableName} TO {role}; GRANT SELECT ON {viewName} TO {role};";
@@ -70,13 +70,13 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
         var credentials = ReadLookupCredentials();
         var required = RequiredLookupTables(core);
         await ProvisioningSql.ExecuteAsync(connection, transaction,
-            $"CREATE EXTENSION IF NOT EXISTS postgres_fdw; CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(core.SchemaName)};",
+            $"CREATE EXTENSION IF NOT EXISTS postgres_fdw WITH SCHEMA {ProvisioningSql.Identifier(branch.SchemaName)}; CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(core.SchemaName)};",
             ct);
         await ConfigureServerAsync(connection, transaction, core, ct);
         await ConfigureUserMappingAsync(connection, transaction, branch, credentials, ct);
 
         await using var coreConnection = await registry.OpenAsync(core, ct, administrator: true);
-        var views = await ReadViewsAsync(coreConnection, RegistrySchema, required, ct);
+        var views = await ReadViewsAsync(coreConnection, BranchSchema, required, ct);
         var missing = required.Except(views.Select(view => view.Name["lookup_".Length..]), StringComparer.Ordinal).ToArray();
         if (missing.Length > 0)
             throw new InvalidOperationException($"Core lookup views are missing: {string.Join(", ", missing)}.");
@@ -92,12 +92,15 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
             {
                 var columns = string.Join(",", view.Columns.Select(column =>
                     $"{ProvisioningSql.Identifier(column.Name)} {column.Type}"));
-                var sql = $"CREATE FOREIGN TABLE {ProvisioningSql.Identifier(core.SchemaName)}.{ProvisioningSql.Identifier(localName)} ({columns}) SERVER {ProvisioningSql.Identifier(ServerName)} OPTIONS (schema_name {ProvisioningSql.Literal(RegistrySchema)}, table_name {ProvisioningSql.Literal(view.Name)}, updatable 'false');";
+                var sql = $"CREATE FOREIGN TABLE {ProvisioningSql.Identifier(core.SchemaName)}.{ProvisioningSql.Identifier(localName)} ({columns}) SERVER {ProvisioningSql.Identifier(ServerName)} OPTIONS (schema_name {ProvisioningSql.Literal(BranchSchema)}, table_name {ProvisioningSql.Literal(view.Name)}, updatable 'false');";
                 await ProvisioningSql.ExecuteAsync(connection, transaction, sql, ct);
             }
             else
             {
                 await UpdateForeignTableAsync(connection, transaction, branch, core.SchemaName, localName, view.Columns, ct);
+                await ProvisioningSql.ExecuteAsync(connection, transaction,
+                    $"ALTER FOREIGN TABLE {ProvisioningSql.Identifier(core.SchemaName)}.{ProvisioningSql.Identifier(localName)} OPTIONS (SET schema_name {ProvisioningSql.Literal(BranchSchema)});",
+                    ct);
             }
             created.Add($"{ProvisioningSql.Identifier(core.SchemaName)}.{ProvisioningSql.Identifier(localName)}");
         }
@@ -353,7 +356,7 @@ internal sealed class CoreLookupProvisioner(IConfiguration configuration, Databa
     private static async Task<string?> RelationKindAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string schema, string name, CancellationToken ct) =>
         await ProvisioningSql.ScalarAsync<string>(connection, transaction,
             "SELECT c.relkind::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2",
-            ct, ("p1", schema), ("p2", name));
+            ct, schema, name);
 
     private static async Task UpdateForeignTableAsync(
         NpgsqlConnection connection,

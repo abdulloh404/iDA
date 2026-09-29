@@ -13,11 +13,11 @@ internal static class ProvisioningSql
         NpgsqlTransaction transaction,
         string sql,
         CancellationToken ct,
-        params (string Name, object? Value)[] parameters)
+        params object?[] parameters)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        foreach (var (name, value) in parameters)
-            command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        foreach (var value in parameters)
+            command.Parameters.AddWithValue(value ?? DBNull.Value);
         await command.ExecuteNonQueryAsync(ct);
     }
 
@@ -26,11 +26,11 @@ internal static class ProvisioningSql
         NpgsqlTransaction transaction,
         string sql,
         CancellationToken ct,
-        params (string Name, object? Value)[] parameters)
+        params object?[] parameters)
     {
         await using var command = new NpgsqlCommand(sql, connection, transaction);
-        foreach (var (name, value) in parameters)
-            command.Parameters.AddWithValue(name, value ?? DBNull.Value);
+        foreach (var value in parameters)
+            command.Parameters.AddWithValue(value ?? DBNull.Value);
         var result = await command.ExecuteScalarAsync(ct);
         if (result is null or DBNull) return default;
         return (T)Convert.ChangeType(result, typeof(T), System.Globalization.CultureInfo.InvariantCulture);

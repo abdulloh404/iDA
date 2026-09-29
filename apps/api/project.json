@@ -35,13 +35,8 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "commands": [
-          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT}\" dotnet watch --non-interactive --project Ida.Api.csproj run -- --urls \"http://localhost:${API_PORT}\"",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet watch --non-interactive --project iDA.Bu.Worker.csproj run -- --no-launch-profile",
-          "cd ingest-worker && dotnet watch --non-interactive --project Ida.Worker.Ingest.csproj run -- serve --hospital=all"
-        ],
-        "parallel": true,
-        "cwd": "apps/api",
+        "command": "exec node tools/run-api.mjs dev",
+        "cwd": ".",
         "env": {
           "DOTNET_ENVIRONMENT": "Development",
           "ASPNETCORE_ENVIRONMENT": "Development"
@@ -56,13 +51,8 @@
         "build"
       ],
       "options": {
-        "commands": [
-          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT}\" dotnet bin/Release/net9.0/iDA.Core.Api.dll",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet bin/Release/net9.0/iDA.Bu.Worker.dll",
-          "cd ingest-worker && dotnet bin/Release/net9.0/Ida.Worker.Ingest.dll serve --hospital=all"
-        ],
-        "parallel": true,
-        "cwd": "apps/api",
+        "command": "exec node tools/run-api.mjs start",
+        "cwd": ".",
         "env": {
           "DOTNET_ENVIRONMENT": "Production",
           "ASPNETCORE_ENVIRONMENT": "Production"
@@ -74,13 +64,8 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "commands": [
-          "cd core-api/api && dotnet run --project Ida.Api.csproj --no-launch-profile -- --urls \"http://localhost:${API_PORT}\"",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet run --project iDA.Bu.Worker.csproj",
-          "cd ingest-worker && dotnet run --project Ida.Worker.Ingest.csproj -- serve --hospital=all"
-        ],
-        "parallel": true,
-        "cwd": "apps/api"
+        "command": "exec node tools/run-api.mjs serve",
+        "cwd": "."
       }
     },
     "migrate-databases": {

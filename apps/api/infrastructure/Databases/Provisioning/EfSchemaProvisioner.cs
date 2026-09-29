@@ -20,7 +20,23 @@ internal static class EfSchemaProvisioner
         CancellationToken ct)
     {
         await ProvisioningSql.ExecuteAsync(connection, transaction,
-            $"CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(endpoint.SchemaName)}; CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(core.SchemaName)}; CREATE EXTENSION IF NOT EXISTS pgcrypto;",
+            $"""
+            CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(endpoint.SchemaName)};
+            CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(core.SchemaName)};
+            CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA {ProvisioningSql.Identifier(endpoint.SchemaName)};
+            DO $$
+            DECLARE
+                extension_name text;
+            BEGIN
+                FOR extension_name IN
+                    SELECT e.extname FROM pg_extension e
+                    JOIN pg_namespace n ON n.oid=e.extnamespace
+                    WHERE n.nspname='public' AND e.extname IN ('pgcrypto','postgres_fdw')
+                LOOP
+                    EXECUTE format('ALTER EXTENSION %I SET SCHEMA %I', extension_name, {ProvisioningSql.Literal(endpoint.SchemaName)});
+                END LOOP;
+            END $$;
+            """,
             ct);
 
         var model = context.GetService<IDesignTimeModel>().Model;
@@ -200,21 +216,21 @@ internal static class EfSchemaProvisioner
     {
         return await ProvisioningSql.ScalarAsync<string>(connection, transaction,
             "SELECT c.relkind::text FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2",
-            ct, ("p1", schema), ("p2", name));
+            ct, schema, name);
     }
 
     private static async Task<bool> IndexExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string schema, string name, CancellationToken ct) =>
         await ProvisioningSql.ScalarAsync<bool>(connection, transaction,
             "SELECT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 AND c.relkind IN ('i','I'))",
-            ct, ("p1", schema), ("p2", name));
+            ct, schema, name);
 
     private static async Task<bool> ConstraintExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string schema, string table, string name, CancellationToken ct) =>
         await ProvisioningSql.ScalarAsync<bool>(connection, transaction,
             "SELECT EXISTS(SELECT 1 FROM pg_constraint x JOIN pg_class c ON c.oid=x.conrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 AND x.conname=$3)",
-            ct, ("p1", schema), ("p2", table), ("p3", name));
+            ct, schema, table, name);
 
     private static async Task<bool> SequenceExistsAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, string schema, string name, CancellationToken ct) =>
         await ProvisioningSql.ScalarAsync<bool>(connection, transaction,
             "SELECT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=$1 AND c.relname=$2 AND c.relkind='S')",
-            ct, ("p1", schema), ("p2", name));
+            ct, schema, name);
 }

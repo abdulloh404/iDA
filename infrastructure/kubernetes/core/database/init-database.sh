@@ -13,8 +13,5 @@ WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'app_db_user'
 \gexec
 SELECT format('ALTER DATABASE %I OWNER TO %I', current_database(), :'app_db_user')
 \gexec
-SELECT format('ALTER SCHEMA public OWNER TO %I', :'app_db_user')
-\gexec
-SELECT format('GRANT ALL ON SCHEMA public TO %I', :'app_db_user')
-\gexec
+DROP SCHEMA IF EXISTS public RESTRICT;
 EOSQL

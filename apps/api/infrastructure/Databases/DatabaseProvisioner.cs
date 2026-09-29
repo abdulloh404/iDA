@@ -8,9 +8,9 @@ public sealed class DatabaseProvisioner(IConfiguration config, DatabaseRegistry 
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await registry.InitializeAsync(ct);
+        var endpoints = await registry.InitializeAsync(ct);
         await ProvisionAsync(registry.Core, ct);
-        foreach (var branch in await registry.ListBranchesAsync(ct))
+        foreach (var branch in endpoints.Where(endpoint => endpoint.Kind == "bu"))
             await ProvisionAsync(branch, ct);
     }
 
@@ -42,6 +42,7 @@ public sealed class DatabaseProvisioner(IConfiguration config, DatabaseRegistry 
             await TenantSecurityProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
         }
 
+        await ProvisioningSql.ExecuteAsync(connection, transaction, "DROP SCHEMA IF EXISTS public RESTRICT;", ct);
         await transaction.CommitAsync(ct);
     }
 

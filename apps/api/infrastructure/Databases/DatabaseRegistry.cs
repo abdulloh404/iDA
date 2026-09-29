@@ -35,6 +35,26 @@ public sealed class DatabaseRegistry : IDisposable
     public string ConnectionString(DatabaseEndpoint endpoint, bool administrator = false)
     {
         Validate(endpoint);
+        var connectionName = endpoint.Code + (administrator ? "Migration" : "");
+        var explicitValue = configuration.GetConnectionString(connectionName);
+        if (string.IsNullOrWhiteSpace(explicitValue) && endpoint.Kind == "core")
+            explicitValue = configuration.GetConnectionString(administrator ? "PostgresMigration" : "Postgres");
+        if (!string.IsNullOrWhiteSpace(explicitValue))
+        {
+            var explicitConnection = new NpgsqlConnectionStringBuilder(explicitValue);
+            if (explicitConnection.Database != endpoint.DatabaseName || (!administrator && explicitConnection.Username != endpoint.Username))
+                throw new InvalidOperationException($"ConnectionStrings:{connectionName} must identify the registered database and runtime user for {endpoint.Code}.");
+            if (string.IsNullOrEmpty(explicitConnection.Password))
+                explicitConnection.Password = configuration[administrator ? $"{endpoint.Code}_DB_ADMIN_PASSWORD" : endpoint.PasswordEnvironment];
+            if (string.IsNullOrEmpty(explicitConnection.Password))
+                throw new InvalidOperationException($"Set the password for ConnectionStrings:{connectionName}.");
+            explicitConnection.SearchPath = SearchPath(endpoint);
+            explicitConnection.ApplicationName = "iDA";
+            explicitConnection.Timeout = 15;
+            explicitConnection.CommandTimeout = 60;
+            explicitConnection.IncludeErrorDetail = false;
+            return explicitConnection.ConnectionString;
+        }
         var configured = configuration[$"{endpoint.Code}_DB_CONNECTION"];
         var original = string.IsNullOrWhiteSpace(configured) ? null : new NpgsqlConnectionStringBuilder(configured);
         var password = configuration[endpoint.PasswordEnvironment] ?? original?.Password;
@@ -94,14 +114,20 @@ public sealed class DatabaseRegistry : IDisposable
         }
     }
 
-    public async Task InitializeAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<DatabaseEndpoint>> InitializeAsync(CancellationToken ct = default)
     {
         var endpoints = new List<DatabaseEndpoint> { Core };
-        foreach (var pair in configuration.AsEnumerable().Where(p => Regex.IsMatch(p.Key, "^BU[0-9]+_DB_CONNECTION$", RegexOptions.IgnoreCase)).OrderBy(p => p.Key, StringComparer.Ordinal))
+        var branchCodes = configuration.AsEnumerable()
+            .Where(pair => Regex.IsMatch(pair.Key, "^(BU[0-9]+_DB_CONNECTION|ConnectionStrings:BU[0-9]+)$", RegexOptions.IgnoreCase))
+            .Select(pair => pair.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase) ? pair.Key.Split(':')[1] : pair.Key[..^"_DB_CONNECTION".Length])
+            .Select(code => code.ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(code => code, StringComparer.Ordinal);
+        foreach (var code in branchCodes)
         {
-            if (string.IsNullOrWhiteSpace(pair.Value)) continue;
-            var code = pair.Key[..^"_DB_CONNECTION".Length].ToUpperInvariant();
-            var endpoint = ReadEndpoint(code, pair.Value, "bu");
+            var value = configuration[$"{code}_DB_CONNECTION"] ?? configuration.GetConnectionString(code);
+            if (string.IsNullOrWhiteSpace(value)) continue;
+            var endpoint = ReadEndpoint(code, value, "bu");
             if (endpoint.SchemaName == Core.SchemaName) throw new InvalidOperationException($"{code} must use a schema name distinct from the Core lookup schema.");
             if (endpoints.Any(other => other.Host == endpoint.Host && other.Port == endpoint.Port && other.DatabaseName == endpoint.DatabaseName))
                 throw new InvalidOperationException($"{code} must have a separate database from Core and other BUs.");
@@ -111,9 +137,19 @@ public sealed class DatabaseRegistry : IDisposable
         await using var connection = await OpenAsync(Core, ct, administrator: true);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await using (var command = new NpgsqlCommand("""
-            CREATE SCHEMA IF NOT EXISTS registry;
-            CREATE TABLE IF NOT EXISTS registry.database_connections (
-                code varchar(40) PRIMARY KEY,
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='registry') THEN
+                    IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname='branch') THEN
+                        RAISE EXCEPTION 'Both registry and branch schemas exist. Resolve the schema conflict before migrating.';
+                    END IF;
+                    ALTER SCHEMA registry RENAME TO branch;
+                END IF;
+            END $$;
+            CREATE SCHEMA IF NOT EXISTS branch;
+            CREATE TABLE IF NOT EXISTS branch.database_connections (
+                id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+                code varchar(40) NOT NULL,
                 kind varchar(4) NOT NULL CHECK (kind IN ('core','bu')),
                 hospital_id varchar(20) UNIQUE,
                 host text NOT NULL,
@@ -123,18 +159,52 @@ public sealed class DatabaseRegistry : IDisposable
                 username text NOT NULL,
                 password_environment text NOT NULL,
                 ssl_mode text NOT NULL DEFAULT 'Prefer',
-                enabled boolean NOT NULL DEFAULT true,
+                is_active boolean NOT NULL DEFAULT true,
                 updated_at timestamptz NOT NULL DEFAULT now(),
                 CHECK ((kind='core' AND hospital_id IS NULL) OR (kind='bu' AND hospital_id IS NOT NULL))
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS one_core_database ON registry.database_connections(kind) WHERE kind='core';
+            ALTER TABLE branch.database_connections ADD COLUMN IF NOT EXISTS id uuid DEFAULT pg_catalog.gen_random_uuid();
+            UPDATE branch.database_connections SET id=pg_catalog.gen_random_uuid() WHERE id IS NULL;
+            ALTER TABLE branch.database_connections ALTER COLUMN id SET DEFAULT pg_catalog.gen_random_uuid(), ALTER COLUMN id SET NOT NULL;
+            DO $$
+            DECLARE
+                previous_primary_key name;
+            BEGIN
+                IF EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='branch.database_connections'::regclass AND attname='enabled' AND NOT attisdropped) THEN
+                    ALTER TABLE branch.database_connections RENAME COLUMN enabled TO is_active;
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint c
+                    JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attname='id'
+                    WHERE c.conrelid='branch.database_connections'::regclass AND c.contype='p' AND c.conkey=ARRAY[a.attnum]
+                ) THEN
+                    SELECT conname INTO previous_primary_key FROM pg_constraint
+                    WHERE conrelid='branch.database_connections'::regclass AND contype='p';
+                    IF previous_primary_key IS NOT NULL THEN
+                        EXECUTE format('ALTER TABLE branch.database_connections DROP CONSTRAINT %I', previous_primary_key);
+                    END IF;
+                    ALTER TABLE branch.database_connections ADD PRIMARY KEY (id);
+                END IF;
+            END $$;
+            CREATE UNIQUE INDEX IF NOT EXISTS database_connections_code_key ON branch.database_connections(code);
+            CREATE UNIQUE INDEX IF NOT EXISTS one_core_database ON branch.database_connections(kind) WHERE kind='core';
             """, connection, transaction)) await command.ExecuteNonQueryAsync(ct);
         foreach (var endpoint in endpoints)
         {
             await using var command = new NpgsqlCommand("""
-                INSERT INTO registry.database_connections (code,kind,hospital_id,host,port,database_name,schema_name,username,password_environment,ssl_mode)
+                INSERT INTO branch.database_connections (code,kind,hospital_id,host,port,database_name,schema_name,username,password_environment,ssl_mode)
                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-                ON CONFLICT (code) DO NOTHING
+                ON CONFLICT (code) DO UPDATE SET
+                    kind=EXCLUDED.kind,
+                    hospital_id=EXCLUDED.hospital_id,
+                    host=EXCLUDED.host,
+                    port=EXCLUDED.port,
+                    database_name=EXCLUDED.database_name,
+                    schema_name=EXCLUDED.schema_name,
+                    username=EXCLUDED.username,
+                    password_environment=EXCLUDED.password_environment,
+                    ssl_mode=EXCLUDED.ssl_mode,
+                    updated_at=now()
                 """, connection, transaction);
             command.Parameters.AddWithValue(endpoint.Code);
             command.Parameters.AddWithValue(endpoint.Kind);
@@ -148,14 +218,15 @@ public sealed class DatabaseRegistry : IDisposable
             command.Parameters.AddWithValue(endpoint.SslMode);
             await command.ExecuteNonQueryAsync(ct);
         }
-        await using (var command = new NpgsqlCommand($"GRANT USAGE ON SCHEMA registry TO {Quote(Core.Username)}; GRANT SELECT ON registry.database_connections TO {Quote(Core.Username)};", connection, transaction)) await command.ExecuteNonQueryAsync(ct);
+        await using (var command = new NpgsqlCommand($"GRANT USAGE ON SCHEMA branch TO {Quote(Core.Username)}; GRANT SELECT ON branch.database_connections TO {Quote(Core.Username)};", connection, transaction)) await command.ExecuteNonQueryAsync(ct);
         await transaction.CommitAsync(ct);
+        return endpoints;
     }
 
     public async Task<IReadOnlyList<DatabaseEndpoint>> ListBranchesAsync(CancellationToken ct = default)
     {
         await using var connection = await CoreSource.OpenConnectionAsync(ct);
-        await using var command = new NpgsqlCommand("SELECT code,kind,hospital_id,host,port,database_name,schema_name,username,password_environment,ssl_mode FROM registry.database_connections WHERE enabled AND kind='bu' ORDER BY code", connection);
+        await using var command = new NpgsqlCommand("SELECT code,kind,hospital_id,host,port,database_name,schema_name,username,password_environment,ssl_mode FROM branch.database_connections WHERE is_active AND kind='bu' ORDER BY code", connection);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var entries = new List<DatabaseEndpoint>();
         while (await reader.ReadAsync(ct))
@@ -174,7 +245,7 @@ public sealed class DatabaseRegistry : IDisposable
     {
         var entries = await ListBranchesAsync(ct);
         var matches = entries.Where(e => string.Equals(e.HospitalId, hospitalId, StringComparison.Ordinal) || string.Equals(e.Code, hospitalId, StringComparison.OrdinalIgnoreCase)).ToArray();
-        return matches.Length == 1 ? matches[0] : throw new InvalidOperationException($"No unique enabled BU database is registered for hospital '{hospitalId}'.");
+        return matches.Length == 1 ? matches[0] : throw new InvalidOperationException($"No unique active BU database is registered for hospital '{hospitalId}'.");
     }
 
     private DatabaseEndpoint ReadEndpoint(string code, string connectionString, string kind)
@@ -190,7 +261,7 @@ public sealed class DatabaseRegistry : IDisposable
         if (string.IsNullOrWhiteSpace(endpoint.Host) || string.IsNullOrWhiteSpace(endpoint.DatabaseName) || string.IsNullOrWhiteSpace(endpoint.Username)) throw new InvalidOperationException($"Host, database and username are required for {endpoint.Code}.");
         if (endpoint.Port is < 1 or > 65535) throw new InvalidOperationException($"Invalid port for {endpoint.Code}.");
         if (!Regex.IsMatch(endpoint.SchemaName, "^[a-z_][a-z0-9_]{0,62}$")) throw new InvalidOperationException($"Invalid schema name for {endpoint.Code}.");
-        if (endpoint.SchemaName is "registry" or "pg_catalog" or "information_schema" or "public" || endpoint.SchemaName.StartsWith("pg_", StringComparison.Ordinal)) throw new InvalidOperationException($"Reserved schema name for {endpoint.Code}.");
+        if (endpoint.SchemaName is "branch" or "registry" or "pg_catalog" or "information_schema" or "public" || endpoint.SchemaName.StartsWith("pg_", StringComparison.Ordinal)) throw new InvalidOperationException($"Reserved schema name for {endpoint.Code}.");
         if (endpoint.Kind == "bu" && (string.IsNullOrWhiteSpace(endpoint.HospitalId) || endpoint.HospitalId.Length > 20)) throw new InvalidOperationException($"A hospital ID of at most 20 characters is required for {endpoint.Code}.");
         if (!Regex.IsMatch(endpoint.PasswordEnvironment, "^[A-Z][A-Z0-9_]*$")) throw new InvalidOperationException($"Invalid password environment name for {endpoint.Code}.");
     }
