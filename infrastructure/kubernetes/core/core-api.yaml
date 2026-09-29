@@ -36,6 +36,11 @@ spec:
           env:
             - name: ASPNETCORE_HTTP_PORTS
               value: "3100"
+            - name: Jwt__Key
+              valueFrom:
+                secretKeyRef:
+                  name: core-secrets
+                  key: Jwt__Key
           envFrom:
             - secretRef:
                 name: core-secrets

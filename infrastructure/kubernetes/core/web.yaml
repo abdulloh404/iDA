@@ -23,6 +23,11 @@ spec:
         - name: web
           image: ida/web:dev
           imagePullPolicy: IfNotPresent
+          env:
+            - name: WEB_PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
           ports:
             - name: http
               containerPort: 3000

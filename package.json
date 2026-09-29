@@ -29,7 +29,7 @@
     "kube:apply": "nx run infrastructure:kube-apply",
     "kube:db-info": "nx run infrastructure:kube-db-info",
     "kube:purge": "nx run infrastructure:kube-purge",
-    "kube:restore-db": "nx run infrastructure:kube-restore-db",
+    "kube:restore": "nx run infrastructure:kube-restore",
     "graph": "nx graph"
   },
   "private": true,
