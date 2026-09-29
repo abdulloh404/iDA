@@ -36,8 +36,8 @@
       "continuous": true,
       "options": {
         "commands": [
-          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT:-3100}\" dotnet watch --non-interactive --project Ida.Api.csproj run --no-launch-profile",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT:-3100}}\" dotnet watch --non-interactive --project iDA.Bu.Worker.csproj run -- --no-launch-profile",
+          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT}\" dotnet watch --non-interactive --project Ida.Api.csproj run -- --urls \"http://localhost:${API_PORT}\"",
+          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet watch --non-interactive --project iDA.Bu.Worker.csproj run -- --no-launch-profile",
           "cd ingest-worker && dotnet watch --non-interactive --project Ida.Worker.Ingest.csproj run -- serve --hospital=all"
         ],
         "parallel": true,
@@ -57,8 +57,8 @@
       ],
       "options": {
         "commands": [
-          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT:-3100}\" dotnet bin/Release/net9.0/iDA.Core.Api.dll",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT:-3100}}\" dotnet bin/Release/net9.0/iDA.Bu.Worker.dll",
+          "cd core-api/api && ASPNETCORE_URLS=\"http://localhost:${API_PORT}\" dotnet bin/Release/net9.0/iDA.Core.Api.dll",
+          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet bin/Release/net9.0/iDA.Bu.Worker.dll",
           "cd ingest-worker && dotnet bin/Release/net9.0/Ida.Worker.Ingest.dll serve --hospital=all"
         ],
         "parallel": true,
@@ -75,8 +75,8 @@
       "continuous": true,
       "options": {
         "commands": [
-          "cd core-api/api && dotnet run --project Ida.Api.csproj --no-launch-profile -- --urls \"http://localhost:${API_PORT:-3100}\"",
-          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT:-3100}}\" dotnet run --project iDA.Bu.Worker.csproj",
+          "cd core-api/api && dotnet run --project Ida.Api.csproj --no-launch-profile -- --urls \"http://localhost:${API_PORT}\"",
+          "cd background-worker && Core__BaseUrl=\"${Core__BaseUrl:-http://localhost:${API_PORT}}\" dotnet run --project iDA.Bu.Worker.csproj",
           "cd ingest-worker && dotnet run --project Ida.Worker.Ingest.csproj -- serve --hospital=all"
         ],
         "parallel": true,
