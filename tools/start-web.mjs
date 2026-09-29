@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const rawPort = process.env.WEB_PORT ?? process.env.PORT ?? '3000';
+const rawPort = process.env.WEB_PORT ?? process.env.PORT;
 const port = Number(rawPort);
 
 if (!Number.isInteger(port) || port < 1 || port > 65535) {
