@@ -5,7 +5,7 @@ services:
     image: rabbitmq:4-management
     hostname: rabbitmq
     ports:
-      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_PORT}:5672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
