@@ -5,7 +5,7 @@
 ชื่อแสดงผลของระบบคือ `iDA`; package scope, Docker images และ RabbitMQ vhost ใช้ `ida`
 Core และทุก BU ใช้ PostgreSQL ภายนอกตาม `.env`; ตัวอย่างปัจจุบันใช้ database `core`, `bu01`, `bu02`
 ผู้ให้บริการต้องสร้าง database ไว้แล้ว ส่วน `db:migrate` เตรียม runtime roles, schema และตารางผ่านการเชื่อมต่อ PostgreSQL โดยไม่ต้อง SSH
-RabbitMQ ใช้ service ที่มีอยู่ที่ `localhost:5672` และ vhost `ida`; ต้องเตรียมบัญชี สิทธิ์ และ queues ให้พร้อมก่อนเริ่มแอป
+คำสั่ง API ผ่าน Nx เปิด RabbitMQ จาก `docker/rabbitmq/docker-compose.yml` ที่ `localhost:5672` และเตรียมบัญชี สิทธิ์ และ queues จาก `.env` ก่อนเริ่มแอป
 Android/iOS ใช้ app identifier ใหม่ `com.ida.mobile`; iOS ต้องเตรียม signing/provisioning ให้ตรงกับ identifier นี้
 ลิงก์ repository ใน package metadata ใช้ `/ida` แล้ว แต่ไม่ได้ rename repository บน server, ย้าย checkout folder หรือเปลี่ยน Git remote จริง
 
@@ -23,6 +23,7 @@ project/
 │       ├── iDA.sln
 │       ├── core-api/           Core API กลางหนึ่ง service
 │       └── background-worker/  งานประมวลผลเบื้องหลัง ใช้ source/image ร่วมกันทุก BU
+├── docker/rabbitmq/            Docker Compose และ config ของ RabbitMQ
 ├── .agents/skills/             เฉพาะ Nx skills สำหรับ Codex
 ├── .claude/skills/             symlink ไป Nx skills ชุดเดียวกัน
 ├── .codex/config.toml          Nx MCP สำหรับ Codex
@@ -99,7 +100,7 @@ Dockerfiles มีเฉพาะ Core API, Worker และ Web
 
 | ส่วน | Development / Hot Reload | Release / Production |
 | --- | --- | --- |
-| Core API + Background Worker | `npm run dev:api` | `npm run start:api` |
+| Core API + Workers + RabbitMQ | `npm run dev:api` | `npm run start:api` |
 | Web | `npm run dev:web` | `npm run start:web` |
 | Android | `npm run dev:mobile` | `npm run start:mobile` |
 | iOS | `npm run dev:ios` | `npm run start:ios` |
@@ -122,6 +123,12 @@ API_PORT=3100
 คำสั่ง Nx dev/start บน Linux/macOS อ่านค่าพอร์ตเหล่านี้ และใช้ค่า 3000/3100 หากยังไม่ได้กำหนด
 Mobile ใช้ค่า default ของ Flutter; Background Worker ไม่มี HTTP port ของตนเอง
 Worker ใช้ URL ของ API ตาม `API_PORT` เว้นแต่กำหนด `Core__BaseUrl` ไว้เอง
+
+`nx run api:dev`, `nx run api:start` และ `nx run api:serve` ใช้ runner เดียวกัน; npm scripts เป็น alias ของคำสั่ง Nx เหล่านี้
+เครื่องต้องมี Docker Engine ที่เปิดอยู่และ Docker Compose ที่รองรับ `up --wait`
+Runner เตรียม vhost, บัญชีและสิทธิ์จาก `CORE_QUEUE_CONNECTION` / `<BU_ID>_QUEUE_CONNECTION` พร้อม queue `jobs.<bu_id>` แล้วเปิด RabbitMQ ด้วย Compose และรอให้พร้อมก่อนเริ่ม Core API, BU Worker และ Ingest Worker
+หาก Docker หรือ RabbitMQ เปิดไม่สำเร็จ คำสั่ง API จะหยุดก่อนเปิด process ของ .NET
+Definitions เก็บ password hashes ไว้ใน `.nx/rabbitmq/definitions.json` ซึ่งถูก ignore; ข้อมูล RabbitMQ เก็บใน Docker volume และ container ยังทำงานต่อเมื่อหยุด API
 
 `dev:api` รัน Core API, BU Worker และ Ingest Worker พร้อมกันผ่าน `dotnet watch` ใน Development
 BU Worker ใช้ค่า BU01 จาก `appsettings.Development.json` เป็นค่าเริ่มต้น เปลี่ยนสาขาได้ด้วย `BU_ID`
@@ -205,7 +212,7 @@ BU02_DB_CONNECTION="Host=db.example.invalid;Port=5435;Database=bu02;Username=bu0
 
 ### ตั้งค่า RabbitMQ
 
-ใช้ RabbitMQ service ที่มีอยู่ที่ `localhost:5672` พร้อม vhost `ida`, บัญชี `core_publisher`, `bu01_worker`, `bu02_worker` และ queue `jobs.bu01`, `jobs.bu02` ที่เตรียมไว้แล้ว ตัวอย่าง URI ใน `.env`:
+สำหรับ RabbitMQ ของโปรเจกต์ ใช้ `localhost:5672` พร้อม vhost `ida`, บัญชี `core_publisher`, `bu01_worker`, `bu02_worker` และ queue `jobs.bu01`, `jobs.bu02` โดย runner เตรียมให้จาก URI ใน `.env`:
 
 ```dotenv
 CORE_QUEUE_CONNECTION="amqp://core_publisher:REPLACE_ME_CORE_QUEUE_PASSWORD@localhost:5672/ida"
@@ -213,7 +220,9 @@ BU01_QUEUE_CONNECTION="amqp://bu01_worker:REPLACE_ME_BU01_QUEUE_PASSWORD@localho
 BU02_QUEUE_CONNECTION="amqp://bu02_worker:REPLACE_ME_BU02_QUEUE_PASSWORD@localhost:5672/ida"
 ```
 
-แทนรหัสผ่านตัวอย่างด้วยรหัสผ่านบัญชี broker ที่มีอยู่และกำหนดสิทธิ์ให้ตรงกับ queue ของแต่ละ BU แอปใช้ connection ที่ตั้งค่าไว้และไม่ติดตั้ง broker หรือสร้าง vhost, users, exchange, queue และ binding ให้
+แทนรหัสผ่านตัวอย่างด้วยรหัสผ่านจริงสำหรับแต่ละบัญชี; runner ใช้ค่าเหล่านี้เตรียมบัญชีและสิทธิ์ใน RabbitMQ ของโปรเจกต์โดยไม่เปลี่ยน `.env`
+ถ้าเปลี่ยนพอร์ต ให้กำหนด `RABBITMQ_PORT` และพอร์ตใน URI ให้ตรงกัน
+เมื่อทุก URI ชี้ server ภายนอก runner จะข้ามการเปิด Docker; ต้องเตรียมบัญชี สิทธิ์ และ queues บน server นั้นเอง
 
 ### เริ่มใช้งาน
 

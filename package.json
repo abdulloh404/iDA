@@ -16,7 +16,6 @@
     "build:web": "nx build web",
     "build:mobile": "nx build mobile",
     "build:ios": "nx run mobile:build-ios",
-    "docker:build": "nx run-many -t docker-build --projects=web,api",
     "db:migrate": "nx run api:migrate-databases",
     "db:seed": "nx run api:seed",
     "graph": "nx graph"
