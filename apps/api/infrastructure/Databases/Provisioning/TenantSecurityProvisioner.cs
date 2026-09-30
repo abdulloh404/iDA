@@ -72,7 +72,7 @@ internal static class TenantSecurityProvisioner
             ? string.Empty
             : $"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE {string.Join(',', tables)} TO {role};";
         return ProvisioningSql.ExecuteAsync(connection, transaction,
-            $"GRANT USAGE ON SCHEMA {schema} TO {role}; {tableGrant} GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {schema} TO {role};",
+            $"GRANT CONNECT ON DATABASE {ProvisioningSql.Identifier(endpoint.DatabaseName)} TO {role}; GRANT USAGE ON SCHEMA {schema} TO {role}; {tableGrant} GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA {schema} TO {role};",
             ct);
     }
 

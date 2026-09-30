@@ -2,13 +2,10 @@
 
 โครงเริ่มต้นสำหรับ Flutter (Android/iOS), React + Vite และ backend .NET 9 ภายใต้ Nx
 
-ชื่อแสดงผลของระบบคือ `iDA`; package scope, Docker images, Kubernetes labels และ RabbitMQ vhost ใช้ `ida`
-ฐานข้อมูลใน config ใช้ `ida_core` และ `ida_bu01`–`ida_bu03` โดยยังไม่เปลี่ยน DB หรือข้อมูลบน PVC ที่มีอยู่
-PostgreSQL initialize ชื่อ DB เฉพาะ volume ว่าง; หากใช้ PVC เดิมต้องจัดการ migration/rename DB ก่อน deploy config ใหม่นี้
-RabbitMQ vhost ใหม่แยกจาก vhost เดิม และไม่ได้ย้าย messages/objects ให้เอง
-ก่อนใช้ `kube:purge` กับ cluster ที่ deploy ไว้เดิม ต้องมี namespace labels `ida.io/role`/`ida.io/bu` ตาม manifests ใหม่
-คำสั่ง purge ไม่ค้นหา labels เดิม; การเปลี่ยนชื่อในไฟล์ไม่ deploy, restart หรือลบทรัพยากรใน cluster
-สร้าง images ใหม่ในชื่อ `ida/*` และเตรียม Secrets/config ให้ตรงกันก่อน apply โดยไม่ลบ PVC เพื่อเปลี่ยนชื่อ
+ชื่อแสดงผลของระบบคือ `iDA`; package scope, Docker images และ RabbitMQ vhost ใช้ `ida`
+Core และทุก BU ใช้ PostgreSQL ภายนอกตาม `.env`; ตัวอย่างปัจจุบันใช้ database `core`, `bu01`, `bu02`
+ผู้ให้บริการต้องสร้าง database ไว้แล้ว ส่วน `db:migrate` เตรียม runtime roles, schema และตารางผ่านการเชื่อมต่อ PostgreSQL โดยไม่ต้อง SSH
+RabbitMQ ใช้ service ที่มีอยู่ที่ `localhost:5672` และ vhost `ida`; ต้องเตรียมบัญชี สิทธิ์ และ queues ให้พร้อมก่อนเริ่มแอป
 Android/iOS ใช้ app identifier ใหม่ `com.ida.mobile`; iOS ต้องเตรียม signing/provisioning ให้ตรงกับ identifier นี้
 ลิงก์ repository ใน package metadata ใช้ `/ida` แล้ว แต่ไม่ได้ rename repository บน server, ย้าย checkout folder หรือเปลี่ยน Git remote จริง
 
@@ -26,40 +23,33 @@ project/
 │       ├── iDA.sln
 │       ├── core-api/           Core API กลางหนึ่ง service
 │       └── background-worker/  งานประมวลผลเบื้องหลัง ใช้ source/image ร่วมกันทุก BU
-├── infrastructure/
-│   └── kubernetes/
-│       ├── core/               Core API + Web + Core PostgreSQL + RabbitMQ
-│       ├── base/worker/        Worker Deployment template กลาง
-│       ├── base/database/      PostgreSQL StatefulSet + Service + PVC ต่อ BU
-│       └── branches/bu01…bu03/ config/namespace/secret example เท่านั้น
 ├── .agents/skills/             เฉพาะ Nx skills สำหรับ Codex
 ├── .claude/skills/             symlink ไป Nx skills ชุดเดียวกัน
 ├── .codex/config.toml          Nx MCP สำหรับ Codex
 ├── .mcp.json                   Nx MCP สำหรับ Claude
 ├── compose.yaml
-├── .env.example
 ├── nx.json
 └── package.json
 ```
 
 ## Backend และ BU
 
-Backend อยู่ใน solution เดียว มีสอง process roles: Core API และ Worker
-ไม่มี source หรือ project ที่คัดลอกแยกเป็น BU01–BU03
+Backend อยู่ใน solution เดียว มี Core API, BU Worker และ Ingest Worker
+แต่ละ BU ใช้ source เดียวกันและเลือก database ผ่าน configuration
 
 - Core API กลางเชื่อม **Core Database 1 ก้อน** และฐาน BU ตามสาขาใน JWT โดยอ่านข้อมูลแต่ละฐานแยกกันแล้วประกอบผลใน API
-- Worker ทั้ง 3 BU ใช้ image `ida/bu-worker` เดียวกัน เปลี่ยนเฉพาะ runtime configuration
-- Kubernetes สร้าง Worker Deployment 1 ตัว + PostgreSQL StatefulSet 1 ตัว ในแต่ละ namespace `bu01`–`bu03`
+- ทุก BU ใช้ Worker image `ida/bu-worker` เดียวกัน เปลี่ยนเฉพาะ runtime configuration
+- Worker แต่ละ instance ใช้ runtime configuration ของ BU ที่เลือก; PostgreSQL อยู่บน server ภายนอก
 - `Bu__Id=BU01` คู่กับ `Bu__QueueName=jobs.bu01` และ `ConnectionStrings__Bu` ของ BU01
-- BU Database แยก 3 ก้อน: `ida_bu01`–`ida_bu03` แต่ละก้อนมี container, user และ PVC ของตนเอง
+- BU Database แยกกันตาม Host/Port/Database พร้อมบัญชี runtime ของแต่ละสาขา
 - Worker เข้าข้อมูลกลางผ่าน Core API; ไม่ได้รับ credential ของ Core DB
-- RabbitMQ กลางใน namespace `core` แยก queue และ ACL/credential ต่อ BU
+- RabbitMQ ที่ `localhost:5672` แยก queue และ ACL/credential ต่อ BU ใน vhost `ida`
 - Web/Mobile ใช้งานร่วมกันทุก BU; Mobile เป็น client บนอุปกรณ์
 
 `background-worker` คือโปรเจกต์งานประมวลผลเบื้องหลังที่ใช้ร่วมกันทุกสาขา ไม่ใช่ source แยกต่อสาขา
 เพิ่ม replicas ได้ภายหลังเมื่อทำการ claim งาน, idempotency และ concurrency control แล้ว
 
-ฐาน `ida_core` เก็บข้อมูลและ enum ส่วนกลางใน schema `core` ส่วนฐาน `ida_buNN` เก็บตารางและ enum ของตนเองใน schema `bu` โดยใช้ enum definition ชุดเดียวกันในโค้ด ฐาน BU ไม่มี schema `core` หรือ foreign table ที่เชื่อมกลับไปยัง Core
+ฐาน Core เก็บข้อมูลและ enum ส่วนกลางใน schema `core` ส่วนฐาน BU เก็บตารางและ enum ของตนเองใน schema `bu` โดยใช้ enum definition ชุดเดียวกันในโค้ด ฐาน BU ไม่มี schema `core` หรือ foreign table ที่เชื่อมกลับไปยัง Core
 
 หลังอัปเดตโค้ดให้รัน `npm run db:migrate` เพื่อปรับ Core และทุก BU ที่ตั้งค่าไว้ สำหรับฐาน BU เดิม migration จะย้าย enum จาก `core` ไป `bu`, ถอด foreign tables ของ Core ที่ระบบสร้างไว้ และลบ schema `core` เมื่อว่าง โดยไม่ลบข้อมูลตาราง BU หากพบชนิดข้อมูลซ้ำหรือวัตถุอื่นขวางการลบ schema จะหยุดและ rollback ฐานนั้นแทนการลบแบบ cascade จากนั้นเริ่ม API/worker ใหม่เพื่อโหลดการตั้งค่า enum ใหม่
 
@@ -70,23 +60,16 @@ Backend อยู่ใน solution เดียว มีสอง process role
 | Web | React + Vite SPA + static-server Dockerfile | หน้าใช้งานและ API integration |
 | Mobile | Flutter starter, Android และ iOS/Swift | หน้าจอและ API integration |
 | Core API | .NET 9, `GET /health`, OpenAPI ใน Development | DB client, authentication, queue publisher/orchestrator, business endpoints |
-| Worker | อ่าน/ตรวจ BU config, รองรับ shutdown, Dockerfile | queue consumer, BU DB client, ตรวจ tenant ของ message, retry/DLQ, business jobs |
+| Worker | เลือก BU DB, ตั้ง hospital context, ตรวจ DB/Queue, รองรับ shutdown | queue consumer, ตรวจ tenant ของ message, retry/DLQ, business jobs |
 | Docker | Compose สำหรับ Core API, Web และ 3 Workers | ตั้งปลายทาง/credential และ build images |
-| Kubernetes | Core + 3 BU namespaces, Workers 3 ตัว, PostgreSQL 4 ตัว, RabbitMQ กลาง, PVC, Secrets references, NetworkPolicy | เตรียม images, Secrets, storage และตรวจว่า CNI รองรับ NetworkPolicy |
 
-**ยังไม่ใช่ระบบประมวลผลงานครบวงจร** Worker จะ log ว่าเป็น scaffold แล้วรอ shutdown
-ยังไม่รับ Queue, เรียก Core API หรือเขียน DB; `/health` ตรวจเฉพาะ process ไม่ได้ตรวจ DB/Queue
-
-Kubernetes สร้าง PostgreSQL และ app user ของ Core/แต่ละ BU เมื่อเริ่มด้วย volume ว่าง แต่ยังไม่สร้าง business tables/migrations
-RabbitMQ สร้าง vhost, users, permissions, exchange และ queues จาก Secret ที่เตรียมด้วย `kube:secrets`
-มี broker แล้ว แต่ logic publisher/orchestrator และ consumer ในแอปยังต้องพัฒนาต่อ
-Docker Compose ยังคงใช้ Database/Queue ภายนอกทั้งหมด ไม่ได้เพิ่ม DB containers ใน Compose
-ตัวอย่าง Kubernetes ใช้ PostgreSQL และ AMQP/RabbitMQ ภายใน cluster แบบไม่มี TLS สำหรับทดลองเท่านั้น
-ยังไม่ได้ติดตั้ง client libraries ในแอป
+BU Worker ตรวจการเชื่อมต่อ DB และตรวจว่ามี queue อยู่แล้ว ยังไม่มี consumer หรือ business job handler
+`/health` ของ API ตรวจ process ส่วน RabbitMQ service, vhost, users, permissions และ queues ต้องเตรียมไว้ภายนอกแอป
+`db:migrate` สร้างบัญชี runtime ที่ยังไม่มีด้วยรหัสผ่านใน config โดยใช้ admin connection; บัญชีที่มีอยู่แล้วจะไม่ถูกเปลี่ยนรหัสผ่านหรือสิทธิ์ระดับ role
 
 ## Build ผ่าน Nx
 
-ใช้ Node.js 24, npm, .NET SDK 9.0.3xx ตาม `global.json`, Flutter พร้อม Android SDK และ kubectl
+ใช้ Node.js 24, npm, .NET SDK 9.0.3xx ตาม `global.json`, Flutter พร้อม Android SDK
 เรียกจากโฟลเดอร์ `project/`:
 
 ```sh
@@ -94,8 +77,7 @@ npm ci
 npm run build
 ```
 
-`build` เรียก Core API, Worker, React + Vite, Android APK และ render Kubernetes manifests
-ไปที่ `infrastructure/rendered.yaml`; การ render ใช้ไฟล์ local ไม่ติดต่อ/แก้ cluster
+`build` เรียก Core API, Worker, React + Vite และ Android APK
 
 คำสั่งรายส่วน:
 
@@ -105,12 +87,11 @@ npm run build:web
 npm run build:mobile
 npm run build:ios
 npm run docker:build
-npm run kube:render
 ```
 
 iOS build ต้องใช้ macOS + Xcode; target นี้เป็น unsigned build และยังต้อง signing ก่อนเผยแพร่
 Android release scaffold ใช้ signing ตัวอย่างของ Flutter ต้องตั้ง signing จริงก่อนเผยแพร่
-Dockerfiles มีเฉพาะ Core API, Worker และ Web; Mobile ไม่ deploy เข้า Kubernetes
+Dockerfiles มีเฉพาะ Core API, Worker และ Web
 
 ## Run dev / start
 
@@ -125,13 +106,13 @@ Dockerfiles มีเฉพาะ Core API, Worker และ Web; Mobile ไม�
 
 Web ใช้ Vite สำหรับ development; `npm run build:web` ตรวจ TypeScript แล้ว build ไฟล์ static ไปที่ `dist/apps/web`
 `npm run start:web` build ผ่าน Nx ก่อนใช้ `serve` ให้บริการไฟล์ static พร้อม SPA fallback
-Docker ใช้ไฟล์ build และ server เดียวกันที่พอร์ต 3000 จึงใช้ Compose/Kubernetes เดิมได้
+Docker ใช้ไฟล์ build และ server เดียวกันที่พอร์ต 3000 จึงใช้ Compose เดิมได้
 Web เป็น client-side SPA ไม่มี SSR หรือ Next.js API routes; ลบ route ตัวอย่าง `/api/hello` แล้ว
 API จริงยังอยู่ใน Core API .NET ที่พอร์ต 3100 และยังไม่ได้เพิ่มการเชื่อม API ในหน้าเว็บ
 เมื่อเพิ่ม client configuration ให้ใช้ชื่อ `VITE_*` เฉพาะค่าที่เปิดเผยได้ เพราะค่าเหล่านี้ถูกฝังในไฟล์ build
 ห้ามนำ DB/Queue credentials ไปใส่ในตัวแปร `VITE_*`
 
-กำหนดพอร์ตใน `.env` โดยใช้ `.env.example` เป็นตัวอย่าง:
+กำหนดพอร์ตใน `.env`:
 
 ```dotenv
 WEB_PORT=3000
@@ -144,9 +125,9 @@ Worker ใช้ URL ของ API ตาม `API_PORT` เว้นแต่ก
 
 `dev:api` รัน Core API, BU Worker และ Ingest Worker พร้อมกันผ่าน `dotnet watch` ใน Development
 BU Worker ใช้ค่า BU01 จาก `appsettings.Development.json` เป็นค่าเริ่มต้น เปลี่ยนสาขาได้ด้วย `BU_ID`
-เมื่อไม่ได้กำหนด connection ของ worker เอง จะอ่านเฉพาะ `ConnectionStrings:<BU_ID>` จาก `apps/api/core-api/api/appsettings.Local.json` เพื่อใช้ DB endpoint เดียวกับ API
-RabbitMQ ใช้บัญชีและ vhost จาก `<BU_ID>_QUEUE_CONNECTION` โดยเปลี่ยนปลายทางสำหรับ Development เป็น `localhost` กับพอร์ต `KUBE_QUEUE_PORT_FORWARD_PORT` (ค่าเริ่มต้น `5672`) ส่วน `Queue:ConnectionString` ที่กำหนดโดยตรงจะใช้ตามค่านั้น
-รัน `npm run kube:apply` เพื่อเปิด DB/queue port-forward ก่อนเริ่ม `dev:api` และดูสถานะได้ด้วย `npm run kube:db-info`
+เมื่อไม่ได้กำหนด `ConnectionStrings:Bu` ของ worker เอง จะใช้ `<BU_ID>_DB_CONNECTION` และ runtime password จาก `.env` ก่อน fallback ไป `ConnectionStrings:<BU_ID>` ใน worker หรือไฟล์ `apps/api/core-api/api/appsettings.Local.json`
+RabbitMQ ใช้ URI ที่กำหนดใน `Queue:ConnectionString` หรือ `<BU_ID>_QUEUE_CONNECTION` โดยตรง รวมทั้ง host, port, username, password และ vhost
+ก่อนเริ่ม API/worker ครั้งแรกให้รัน `npm run db:migrate` แล้ว `npm run db:seed` ตามลำดับ
 ค่าพอร์ตเริ่มต้น: API อยู่ที่ `http://localhost:3100`; Web อยู่ที่ `http://localhost:3000`
 
 `start:api` รันทั้งสาม process ใน Production หลัง build Release ผ่าน Nx และไม่ใช้ launch profile
@@ -157,7 +138,7 @@ RabbitMQ ใช้บัญชีและ vhost จาก `<BU_ID>_QUEUE_CONNEC
 Bu__Id=BU01 Bu__QueueName=jobs.bu01 npm run start:api
 ```
 
-คำสั่ง API เริ่ม Worker เพียงหนึ่ง instance ตาม BU config ไม่ได้เริ่ม Workers ทั้ง 3 ตัว
+คำสั่ง API เริ่ม BU Worker เพียงหนึ่ง instance ตาม BU config
 BU Worker ตรวจการเชื่อม DB และการมีอยู่ของ queue โดยยังไม่รับข้อความหรือประมวลผลงานจริง
 `start:web` build ผ่าน Nx แล้วเตรียม static/public assets และใช้ standalone server ตาม config ปัจจุบัน
 
@@ -176,14 +157,13 @@ npm run dev:ios -- --device-id="IOS_DEVICE_ID"
 
 ## Docker Compose
 
-1. คัดลอก `.env.example` เป็น `.env` แล้วเปลี่ยนทุก endpoint/credential ให้ตรงระบบทดลอง
+1. กำหนด `.env` ให้ทุก endpoint/credential ตรงระบบทดลอง
 2. Build images: `npm run docker:build`
 3. ผู้ใช้เริ่ม container เอง: `docker compose up -d`
 
 Compose สร้าง Core API 1 container, Web 1 container และ Workers 3 containers จาก Worker image เดียว
 ไม่มี Database/Queue containers; connection settings เตรียมไว้สำหรับ client/consumer ที่จะพัฒนาต่อ
-ค่าเริ่มต้นใน `.env.example` เป็น DNS ภายใน Kubernetes ซึ่ง Compose/local โดยทั่วไปเข้าถึงไม่ได้
-หากใช้ Compose ต้องเปลี่ยน endpoints ให้เข้าถึงได้จาก containers; การใช้ `.env` สำหรับ Kubernetes ให้คง endpoints ภายใน cluster
+DB ใช้ปลายทางภายนอก ส่วน RabbitMQ ต้องกำหนด host ให้ containers เข้าถึง service บนเครื่องได้; `localhost` ใน container หมายถึง container นั้นเอง
 ค่าพอร์ตเริ่มต้น: Web `http://localhost:3000`; API health `http://localhost:3100/health`
 `WEB_PORT` และ `API_PORT` กำหนด host ports ของ Compose; ภายใน container ใช้ Web 3000 และ API 3100
 ค่า `.env` ไม่ถูก commit และไม่ถูกส่งเข้า Docker build context
@@ -194,282 +174,64 @@ Compose สร้าง Core API 1 container, Web 1 container และ Workers 
 CORE_DB_PASSWORD=REPLACE_ME
 BU01_DB_PASSWORD=REPLACE_ME
 BU02_DB_PASSWORD=REPLACE_ME
-BU03_DB_PASSWORD=REPLACE_ME
 ```
 
 เปลี่ยนเป็นรหัสผ่านจริงคนละชุด เช่น random hex 64 ตัวอักษรที่สร้างด้วย `openssl rand -hex 32`
-`CORE_DB_CONNECTION` และ `BU01_DB_CONNECTION`–`BU03_DB_CONNECTION` เก็บ Host/Database/Username โดยไม่ใส่ Password
+`CORE_DB_CONNECTION` และ `<BU_ID>_DB_CONNECTION` เก็บ Host/Database/Username โดยไม่ใส่ Password
 Compose จะเติม Password จาก env แยกให้เอง; รหัสผ่านต้องตรงกับ app user ใน DB ภายนอกที่เตรียมไว้
 การแก้ env ไม่ได้เปลี่ยนรหัสผ่านใน DB ที่มีอยู่แล้ว
 `CORE_QUEUE_CONNECTION` และ `BUxx_QUEUE_CONNECTION` ใช้ user/password ของ broker แยกจาก DB
 จึงต้องตั้งบัญชีและสิทธิ์ให้ตรงกับ Queue จริง ไม่ได้ดึงค่า `DB_PASSWORD` ไปใช้โดยอัตโนมัติ
-รหัสผ่านที่ใส่ใน `.env.example` เป็นตัวอย่างสำหรับทดลอง ไม่ใช่ค่าพร้อมใช้งานจริง
 
-## Kubernetes
+## การตั้งค่า DB และ Queue
 
-Service/container ports ใช้ Web 3000 และ API 3100; Kubernetes manifests ไม่อ่าน `.env` โดยตรง
-ใช้ `npm run kube:secrets` เพื่ออ่าน credential จาก `.env` แล้วสร้าง/อัปเดต Secrets ก่อน deploy
+### ตั้งค่า DB ภายนอก
 
-หลังเตรียมระบบและ Secrets ครั้งแรกแล้ว deploy ทั้งชุดจากโฟลเดอร์ `project/` ด้วยคำสั่งเดียว:
-
-```sh
-npm run kube:apply
-```
-
-คำสั่งนี้ render manifests โดยใช้ UID/GID ของผู้รันสำหรับ DB/Queue แล้วส่งให้ `kubectl apply -f -` เพื่อสร้าง/อัปเดต Core API, Web, Core DB และ RabbitMQ กลาง
-พร้อม namespace `bu01`–`bu03` ซึ่งแต่ละ BU มี:
-
-- Worker Deployment 1 replica ใช้ Worker image เดียวกันทั้ง 3 BU
-- PostgreSQL `bu-db` 1 replica มี database `ida_buNN` และ app user `bu01user`–`bu03user` ที่ไม่ใช่ superuser
-- Service `bu-db` พอร์ต 5432 และ PVC `data-bu-db-0` ขนาด 10Gi แยกตาม namespace
-- Service `bu-db-client` แบบ ClusterIP สำหรับโปรแกรมเชื่อมฐานข้อมูล มี IP ของตนเองในแต่ละ namespace
-- NetworkPolicy อนุญาตเฉพาะ Worker ใน namespace เดียวกันเข้า DB ของ BU นั้น
-
-หลัง apply จะเริ่ม DB port-forward และ RabbitMQ port-forward เบื้องหลัง รอจนเริ่มรับ connection แล้วคืน terminal ให้ใช้ต่อ RabbitMQ bind ที่ `127.0.0.1` พอร์ต `5672` หรือค่าจาก `KUBE_QUEUE_PORT_FORWARD_PORT` ใน `.env` โดยอ่านพอร์ต AMQP ปลายทางจาก Service `queue` ทั้ง `kube:apply` และ `kube:db-info` จะแสดง host, port และ PID ของ forward ส่วน `kube:purge` จะหยุด forward ที่ระบบสร้างไว้ด้วย
-
-Worker ใช้ `Host=bu-db` ซึ่ง resolve ไปยัง DB ใน namespace ของตนเอง
-ชื่อ database/user อ่านจาก `database-config`; password อ่านจาก `worker-secrets.Database__Password`
-ซึ่งคำสั่ง `kube:secrets` นำมาจาก `BU01_DB_PASSWORD`–`BU03_DB_PASSWORD` ใน `.env`
-แล้วประกอบ `ConnectionStrings__Bu` ใน Deployment โดยใช้ password แหล่งเดียวกับที่สร้าง app user
-รหัสผ่านผู้ดูแล PostgreSQL อยู่ใน `database-secrets` และไม่ได้ส่งให้ Worker
-Core ใช้ `CORE_DB_CONNECTION` รวมกับ `CORE_DB_PASSWORD` เพื่อสร้าง `core-secrets.ConnectionStrings__Core`
-Core DB ใช้ app user `core_app` และ database `ida_core`; app password มาจาก `CORE_DB_PASSWORD` ค่าเดียวกัน
-`CORE_DB_ADMIN_PASSWORD` ใช้กับผู้ดูแล PostgreSQL เท่านั้น ไม่ได้ส่งให้ Core API
-ยังไม่มีการเปิดให้ Core API query BU DB โดยตรง; ต้องเพิ่ม client, connection routing และสิทธิ์เมื่อพัฒนาส่วนนั้น
-
-### การเชื่อมต่อฐานข้อมูล BU จากเครื่อง Node
-
-ทุก BU ที่ใช้ `base/database` มี Service `bu-db-client` แบบ ClusterIP สำหรับโปรแกรมเชื่อมฐานข้อมูล เช่น DBeaver
-Service เลือกเฉพาะ `app: bu-db` ใน namespace ของตนเอง จึงเชื่อมไปยัง DB ของ BU นั้นเท่านั้น
-แต่ละ BU มี DB container, บัญชี และ PVC แยกกันตามเดิม; Service `bu-db` ยังคงเป็น headless สำหรับ Worker และ StatefulSet
-ชื่อ resource ไม่ผูกกับโปรแกรม client และเมื่อเพิ่ม BU ที่ใช้ base เดียวกันจะได้ Service นี้ด้วย ไม่ต้องแก้รายชื่อ BU ใน script
-
-รันจากโฟลเดอร์ `project/` หลังเตรียม images, storage และ `.env` แล้ว:
-
-```sh
-npm run kube:render
-npm run kube:secrets
-npm run kube:apply
-```
-
-หลัง apply จะมีตาราง BU, namespace, Host, Port, Database, Username และสถานะ readiness
-รายชื่อ BU อ่านจาก Namespace manifests; database/user อ่านจาก ConfigMap ที่ StatefulSet ใช้จริง
-หากต้องการดูข้อมูลล่าสุดอีกครั้ง ใช้คำสั่ง read-only:
-
-```sh
-npm run kube:db-info
-```
-
-สร้าง PostgreSQL connection แยกกันสำหรับแต่ละ BU ใน DBeaver หรือโปรแกรม client อื่น:
-
-| BU | Host | Port | Database | Username | Password |
-| --- | --- | --- | --- | --- | --- |
-| BU01 | ClusterIP ของ BU01 จากตาราง | `5432` | `ida_bu01` | `bu01user` | รหัสที่ใช้สร้าง app user จาก `BU01_DB_PASSWORD` |
-| BU02 | ClusterIP ของ BU02 จากตาราง | `5432` | `ida_bu02` | `bu02user` | รหัสที่ใช้สร้าง app user จาก `BU02_DB_PASSWORD` |
-| BU03 | ClusterIP ของ BU03 จากตาราง | `5432` | `ida_bu03` | `bu03user` | รหัสที่ใช้สร้าง app user จาก `BU03_DB_PASSWORD` |
-
-ใช้ค่า Host/Port/Database/Username ที่แสดงจริงจาก script หากแก้ config ไม่ใช้ IP ของ Node หรือ `localhost`
-พอร์ตเหมือนกันได้เพราะแต่ละ BU มี IP ของ Service คนละตัว; script ไม่อ่าน Secrets หรือพิมพ์รหัสผ่าน
-ต้องให้ DB พร้อมใช้งานก่อนเชื่อม; readiness ที่แสดงไม่ใช่การทดสอบ username/password หรือ SQL
-สำหรับ client บนเครื่อง Node เดียวกับ DB Pod ไม่ต้องใช้ port-forward หรือเปิด NodePort; ไม่มีการเปิดพอร์ตรับจาก LAN เพิ่ม
-NetworkPolicy เดิมไม่ถูกแก้ เพราะการเข้าถึงจาก Node ที่ DB Pod รันอยู่ได้รับอนุญาต
-หากมี host firewall เพิ่มเติมหรือ client ไม่ได้อยู่บน Node นั้น ต้องตรวจเส้นทางและสิทธิ์ก่อนเชื่อม
-ClusterIP คงเดิมตราบที่ Service ยังอยู่; `kube:purge` ลบ Services นี้พร้อม namespace และ IP อาจเปลี่ยนเมื่อสร้างใหม่
-`kube:apply` ไม่เตรียม images หรือ storage ให้อัตโนมัติ; สำหรับเครื่อง Node เดียวใช้ `kube:images` และ `kube:storage` ตามขั้นตอนด้านล่าง
-ถ้า DB ยัง `Pending` จะยังเชื่อมไม่ได้
-Service ชื่อเก่าที่เคยสร้างเองจะไม่ถูก prune หรือลบโดย `kube:apply`; การเปลี่ยนนี้ไม่ลบ DB/PVC เดิม
-
-| คำสั่ง | หน้าที่ |
-| --- | --- |
-| `npm run kube:render` | แสดง manifests รวม Core และทุก BU โดยไม่ deploy |
-| `npm run kube:secrets` | สร้าง/อัปเดต namespaces และ Secrets จาก `.env` |
-| `npm run kube:images` | Build app images แล้ว import เข้า containerd ของ Node เครื่องนี้ |
-| `npm run kube:storage` | สร้างโฟลเดอร์และ Local PV สำหรับ PVC ที่ Pending ของ StatefulSets ใน manifests |
-| `npm run kube:apply` | Apply workloads และ Services แล้วแสดงข้อมูลเชื่อมต่อทุก BU |
-| `npm run kube:db-info` | อ่านข้อมูลเชื่อมต่อและสถานะ DB ล่าสุด ไม่เปลี่ยน cluster |
-| `npm run kube:purge` | ลบ namespaces ของระบบ รวม workloads, Services, Secrets และ PVC; ไม่ใช้เพื่ออัปเดต |
-
-### Core DB และ RabbitMQ ภายใน cluster
-
-| ส่วน | Service DNS | พอร์ต | ข้อมูลถาวร |
-| --- | --- | --- | --- |
-| Core PostgreSQL | `core-db.core.svc.cluster.local` | 5432 | PVC 10Gi |
-| BU01 PostgreSQL | `bu-db.bu01.svc.cluster.local` | 5432 | PVC 10Gi |
-| BU02 PostgreSQL | `bu-db.bu02.svc.cluster.local` | 5432 | PVC 10Gi |
-| BU03 PostgreSQL | `bu-db.bu03.svc.cluster.local` | 5432 | PVC 10Gi |
-| RabbitMQ | `queue.core.svc.cluster.local` | 5672 | PVC 5Gi |
-
-RabbitMQ ใช้ vhost `ida` และ direct exchange `jobs` โดยเตรียม durable classic queues
-`jobs.bu01`, `jobs.bu02`, `jobs.bu03` พร้อม routing key ที่ตรงกับชื่อ queue
-`kube:secrets` อ่านบัญชีจาก `CORE_QUEUE_CONNECTION` และ `BUxx_QUEUE_CONNECTION`
-แล้วสร้าง password hashes และ definitions ใน Secret `queue-definitions` ไม่เขียน credentials ลง rendered manifests
-
-- บัญชี Core publish ได้เฉพาะ exchange `jobs`; ส่งงานไป BU ใดให้ใช้ routing key ของ BU นั้น
-- บัญชี Worker อ่านได้เฉพาะ queue ของ BU ตัวเอง ไม่สามารถ publish, สร้าง/ลบ queue หรืออ่านข้าม BU
-- แอปที่พัฒนาต่อต้องใช้ topology ที่เตรียมไว้ ไม่ declare/bind resources ใหม่ด้วยบัญชีเหล่านี้
-- URL ใน `.env` ต้องเป็น `amqp://USER:PASSWORD@queue.core.svc.cluster.local:5672/ida`
-  ใช้ username คนละชื่อระหว่าง Core/แต่ละ BU และ percent-encode อักขระพิเศษใน user/password
-
-NetworkPolicy อนุญาต Core API เข้า Core DB และอนุญาต Core API/BU Workers เข้า RabbitMQ
-`kube:apply` เปิด PostgreSQL ผ่าน port-forward บนทุก IPv4 interface และเปิด RabbitMQ ผ่าน loopback port-forward สำหรับ worker บนเครื่องเดียวกัน ส่วน management UI ไม่ได้เปิดไว้
-
-### เตรียมก่อน deploy
-
-1. Build/push images ของ Core API, Worker และ Web ไป registry ใช้ version tag/digest เดียวสำหรับ Workers ทั้ง 3 BU
-   เปลี่ยน image references ใน manifests หรือใช้ `npm run kube:images` สำหรับ local containerd cluster เครื่องนี้
-2. Cluster ต้องมี default StorageClass ที่ provision PVC แบบ ReadWriteOnce ได้ หรือเตรียม PersistentVolumes ให้ตรงกัน
-   สำหรับ PVC เดิมที่ Pending และยังไม่มี StorageClass ใช้ `npm run kube:storage` หลัง apply เพื่อเตรียม Static Local PV
-   ค่าเริ่มต้นขอ storage รวม 45Gi สำหรับ DB 4 ก้อนและ RabbitMQ และต้องมี CPU/RAM พอสำหรับ workloads ทั้งชุด
-3. Cluster ต้องเข้าถึง images `postgres:17-bookworm` และ `rabbitmq:4.2.9` หรือ mirror images ไว้เอง
-4. ปรับ DNS selector/domain ให้ตรง cluster; ตัวอย่างใช้ `cluster.local` และ kube-dns
-   PostgreSQL ใช้ 5432 และ RabbitMQ ใช้ AMQP 5672 แบบไม่มี TLS
-5. เตรียม Secrets ตามด้านล่าง แล้วผู้ใช้จึงรัน `npm run kube:apply` เอง
-
-ไม่ต้องเตรียม Core DB/Queue ภายนอกหรือแก้ external IP allowlist สำหรับชุด Kubernetes นี้
-NetworkPolicy ต้องมี CNI ที่รองรับจึงจะบังคับ isolation ได้จริง
-ไม่มี password จริงใน manifests และ `npm run build`/`npm run kube:render` ไม่สร้าง Secrets หรือ deploy เข้า cluster
-
-### Local storage และ images สำหรับ Node เครื่องนี้
-
-กำหนดไว้ใน `.env` และ `.env.example`:
+กำหนด `CORE_DB_CONNECTION` และ `<BU_ID>_DB_CONNECTION` ใน `.env` ให้เป็น Host/Port/Database ของฐานที่ผู้ให้บริการสร้างไว้แล้ว ตัวอย่าง:
 
 ```dotenv
-KUBE_STORAGE_ROOT=/var/lib/ida/storage
+CORE_DB_CONNECTION="Host=db.example.invalid;Port=5433;Database=core;Username=core_user"
+BU01_DB_CONNECTION="Host=db.example.invalid;Port=5434;Database=bu01;Username=bu01user"
+BU02_DB_CONNECTION="Host=db.example.invalid;Port=5435;Database=bu02;Username=bu02user"
 ```
 
-หากไม่กำหนดค่านี้ จะใช้ `/var/lib/ida/storage` โดยให้ผู้รันเป็นเจ้าของโฟลเดอร์
-รองรับ `~/...` และ absolute path ให้รันคำสั่งด้วยบัญชีปกติ ไม่ใช้ `sudo npm ...`
-`kube:render`, `kube:apply`, `kube:storage` และ `kube:restore` ใช้ UID/GID จริงของบัญชีเดียวกัน
-PostgreSQL ทุก BU/Core และ RabbitMQ ใช้ UID/GID นี้ รวมถึง `fsGroup` จึงสร้างไฟล์ข้อมูลเป็นของผู้รันทั้งหมด
-ให้ใช้ scripts เหล่านี้แทนการ apply base manifests โดยตรง เพื่อเติม UID/GID ก่อน deploy
+- `*_DB_PASSWORD`: รหัสผ่านบัญชี runtime ของ API/Worker แยกจาก admin
+- `*_DB_ADMIN_PASSWORD`: รหัสผ่านผู้ดูแลสำหรับ migrate; admin user เริ่มต้นเป็น `postgres` หรือกำหนด `*_DB_ADMIN_USER`
+- `<BU_ID>_HOSPITAL_ID`: รหัสโรงพยาบาล; ถ้าไม่กำหนดใช้ BU ID เดิม
+- `*_DB_SCHEMA`: ค่าเริ่มต้น `core` สำหรับ Core และ `bu` สำหรับ BU
+- `ConnectionStrings` ใน `apps/api/core-api/api/appsettings.Local.json` ต้องชี้ Host/Port/Database/User เดียวกัน เช่น `Core`, `CoreMigration`, `Bu01`, `Bu01Migration`; runtime และ migration ใช้คนละบัญชี
 
-สำหรับระบบที่ apply แล้วและ DB ยัง Pending ให้รันจาก `project/`:
+`db:migrate` สร้าง runtime LOGIN role ที่ยังไม่มีพร้อมสิทธิ์ของแอป และเตรียม schema ให้ Core/ทุก BU ที่ตั้งค่าไว้ ต้องมี admin ที่สร้าง role และ schema ได้ บัญชี runtime ที่มีอยู่แล้วต้องเป็น LOGIN และไม่มี SUPERUSER/BYPASSRLS; migration จะไม่เปลี่ยนรหัสผ่านบัญชีเดิม ไม่สร้าง/เปลี่ยนชื่อ database และไม่ล้าง business data
+
+### ตั้งค่า RabbitMQ
+
+ใช้ RabbitMQ service ที่มีอยู่ที่ `localhost:5672` พร้อม vhost `ida`, บัญชี `core_publisher`, `bu01_worker`, `bu02_worker` และ queue `jobs.bu01`, `jobs.bu02` ที่เตรียมไว้แล้ว ตัวอย่าง URI ใน `.env`:
+
+```dotenv
+CORE_QUEUE_CONNECTION="amqp://core_publisher:REPLACE_ME_CORE_QUEUE_PASSWORD@localhost:5672/ida"
+BU01_QUEUE_CONNECTION="amqp://bu01_worker:REPLACE_ME_BU01_QUEUE_PASSWORD@localhost:5672/ida"
+BU02_QUEUE_CONNECTION="amqp://bu02_worker:REPLACE_ME_BU02_QUEUE_PASSWORD@localhost:5672/ida"
+```
+
+แทนรหัสผ่านตัวอย่างด้วยรหัสผ่านบัญชี broker ที่มีอยู่และกำหนดสิทธิ์ให้ตรงกับ queue ของแต่ละ BU แอปใช้ connection ที่ตั้งค่าไว้และไม่ติดตั้ง broker หรือสร้าง vhost, users, exchange, queue และ binding ให้
+
+### เริ่มใช้งาน
+
+เตรียม `.env`/API local settings ให้ตรงกับ PostgreSQL ภายนอกและ RabbitMQ ที่มีอยู่ แล้วรัน:
 
 ```sh
-npm run kube:storage
-npm run kube:images
-npm run kube:db-info
+npm run db:migrate
+npm run db:seed
+npm run dev:api
 ```
 
-`kube:storage` อ่าน StatefulSets จาก manifests และขนาด/ชื่อ PVC ที่ deploy จริง ไม่ฝังรายชื่อ BU
-ตรวจว่าเป็น Linux cluster ที่มี Node เดียว พร้อมใช้งาน และ hostname ตรงกับเครื่องที่รันคำสั่ง
-สร้างเฉพาะ Local PV สำหรับ PVC ที่ Pending และไม่มี StorageClass โดยจองกับ namespace/name/UID ของ PVC นั้น
-ตั้ง node affinity ไป Node เครื่องนี้และ reclaim policy เป็น `Retain`; คง PVC และ default StorageClass เดิม
-PVC ที่ Bound อยู่แล้วจะไม่ถูกแก้; ก่อน apply จะตรวจ path และ UID/GID ของ Local PV เดิมให้ตรงกับผู้รัน
-ก่อนสร้างโฟลเดอร์จะตรวจว่าไม่มี symlink แล้วสร้างด้วยสิทธิ์ผู้รันและ mode `0700`
-หากสร้าง `KUBE_STORAGE_ROOT` ใต้ system directory ไม่ได้ จะใช้ `sudo install` เฉพาะสร้างโฟลเดอร์หลักที่ยังไม่มี พร้อมกำหนดเจ้าของเป็น UID/GID ของผู้รัน
-โฟลเดอร์ย่อยและไฟล์ DB/Queue สร้างด้วยสิทธิ์ผู้รันตามปกติ
-โฟลเดอร์เดิมที่ path/เจ้าของตรงกันนำกลับมาใช้ได้ หาก PV ยังถูกจองไว้ให้ PVC อื่นจะหยุดเพื่อให้ตรวจสอบ
-ไม่ chown/chmod ข้อมูลเดิม ไม่ลบ PVC/PV และไม่ลบ directory เพื่อแก้ปัญหา
+เปิดอีก terminal แล้วรัน `npm run dev:web` ฐานข้อมูลใช้ปลายทางภายนอกโดยตรง ส่วน BU Worker เชื่อม RabbitMQ ตาม URI ที่กำหนด ค่าเริ่มต้นเลือก BU01 และเปลี่ยนสาขาด้วย `BU_ID`
 
-ชุดปัจจุบันได้โฟลเดอร์แยก 5 ก้อน:
+### เครือข่ายและการเพิ่ม BU
 
-```text
-/var/lib/ida/storage/core/data-core-db-0
-/var/lib/ida/storage/core/data-queue-0
-/var/lib/ida/storage/bu01/data-bu-db-0
-/var/lib/ida/storage/bu02/data-bu-db-0
-/var/lib/ida/storage/bu03/data-bu-db-0
-```
+เครื่องที่รัน API/migrate ต้องเข้าถึง PostgreSQL ตาม Host/Port ที่ตั้งไว้ Core API ใช้ Core และทุก BU ส่วน Worker ใช้เฉพาะ DB ของ BU ที่เลือก
 
-ความจุ 10Gi/5Gi ใน PV ใช้จับคู่คำขอ PVC ไม่ใช่ disk quota หรือการแบ่ง partition
-โฟลเดอร์เหล่านี้ใช้ดิสก์ของเครื่องเดียวกัน ต้องดูพื้นที่ว่างและ backup เอง; ไม่ใช่ HA หรือ storage สำหรับ production
-หาก Node/ดิสก์เสีย DB จะเข้าถึงข้อมูลไม่ได้ การเปลี่ยน `KUBE_STORAGE_ROOT` ไม่ย้ายข้อมูลที่ Bound แล้ว
-หาก PV เดิมยังชี้ไปคนละ path กับ `KUBE_STORAGE_ROOT` หรือมีเจ้าของคนละ UID/GID คำสั่งจะหยุดก่อน apply เพื่อป้องกัน Pod ใช้สิทธิ์ไม่ตรงกับไฟล์
-เมื่อต้องการสร้างชุดใหม่ ให้ลบทรัพยากรเก่าด้วย `npm run kube:purge` แล้วเตรียม Secrets/Storage ใหม่; โฟลเดอร์ข้อมูลเก่าจะยังอยู่ให้ลบภายหลัง
-หากต้องการเก็บข้อมูลเดิม ให้ย้ายและเปลี่ยนเจ้าของข้อมูลขณะที่ workloads หยุดอยู่ก่อนใช้ `kube:restore`
-หากขั้นตอนล้มเหลว บางโฟลเดอร์/PV อาจถูกสร้างแล้วและจะถูกเก็บไว้ให้ตรวจ ไม่ล้างข้อมูลอัตโนมัติ
-Local PVs สร้างจาก Node/PVC จริงตอนรัน `kube:storage` ไม่อยู่ใน output ของ `kube:render`
-
-`kube:images` อ่าน `ida/*` images จาก Deployment manifests, รัน `npm run docker:build`, บันทึก archive ชั่วคราว
-แล้วใช้ `sudo ctr -n k8s.io images import` นำ images เข้า containerd ที่ Kubernetes ใช้ ไม่ใช่เพียง Docker image cache
-ไม่ restart/apply Pods; kubelet จะลอง image อีกครั้งตามรอบ retry ถ้า import ล้มเหลวจะเก็บ archive และแสดงคำสั่งให้ดำเนินการต่อ
-ต้องใช้ Docker daemon ที่ผู้ใช้เข้าถึงได้, containerd/ctr และสิทธิ์ sudo; ไม่ต้องรัน npm ทั้งคำสั่งด้วย sudo
-ยังต้องให้ Node ดาวน์โหลด `postgres:17-bookworm` และ `rabbitmq:4.2.9` ได้สำหรับ DB/Queue
-
-สำหรับสร้างใหม่ตั้งแต่ต้น หลังเตรียม credentials ใน `.env`:
-
-```sh
-npm run kube:render
-npm run kube:images
-npm run kube:secrets
-npm run kube:apply
-npm run kube:storage
-npm run kube:db-info
-```
-
-หลังสร้าง Local PV แล้ว Kubernetes อาจ bind PVC และเริ่ม DB/Queue ที่ Pending อยู่โดยอัตโนมัติ
-คำสั่งเตรียมไม่รอ readiness หรือทดสอบ SQL ให้รัน `kube:db-info` อีกครั้งเมื่อ Pods พร้อมแล้ว
-
-คัดลอกไฟล์ตัวอย่างจากโฟลเดอร์ `project/` โดยไม่ทับไฟล์ที่มีอยู่:
-
-```sh
-cp -n .env.example .env
-```
-
-ใช้ `.env` ที่ root ของ `project/` เป็นแหล่ง credential หลักก่อนสร้าง Secrets:
-
-- `CORE_DB_PASSWORD`, `BU01_DB_PASSWORD`–`BU03_DB_PASSWORD`: รหัสผ่าน app user
-- `CORE_DB_ADMIN_PASSWORD`, `BU01_DB_ADMIN_PASSWORD`–`BU03_DB_ADMIN_PASSWORD`: รหัสผ่านผู้ดูแล PostgreSQL
-  ใช้คนละค่ากับ app user; `kube:secrets` ไม่อ่าน `database.secret.env` ราย BU อีกแล้ว
-- `CORE_DB_CONNECTION`: คง Service DNS, database `ida_core` และ username `core_app` ตาม manifests โดยไม่ใส่ Password
-- `CORE_QUEUE_CONNECTION`, `BU01_QUEUE_CONNECTION`–`BU03_QUEUE_CONNECTION`: คง broker DNS, port และ vhost ตามตัวอย่าง
-  เปลี่ยน credentials ใน URL ก่อนใช้งานจริง
-
-ใช้รหัสผ่านสุ่มคนละชุดทุก BU และทุกบัญชี ไม่ใช้ `REPLACE_ME`
-สำหรับ scaffold นี้ใช้ password แบบ hex 64 ตัวอักษร เช่นค่าที่สร้างด้วย `openssl rand -hex 32`
-เพื่อไม่ต้อง escape อักขระพิเศษใน connection string; ไฟล์ `.env` และ `*.secret.env` ถูก gitignore ไว้แล้ว
-ไม่ต้องคัดลอก password ไปไฟล์ราย BU; `.env.example` ราย BU/Core และ `database.secret.env.example` เป็นตัวอย่างรูปแบบ Secret สำหรับเตรียมเองเท่านั้น
-`BUxx_DB_CONNECTION` ใช้กับ Compose เท่านั้น; Kubernetes ใช้ Service `bu-db` ใน namespace ของแต่ละ BU
-
-เมื่อแก้ค่าเรียบร้อย ให้ผู้ใช้ตรวจว่า kubectl context ถูกต้อง แล้วสร้าง/อัปเดต namespaces และ Secrets:
-
-```sh
-npm run kube:secrets
-```
-
-คำสั่งนี้อ่าน `.env` โดยไม่ execute เป็น shell; environment variables ของ process มีลำดับความสำคัญสูงกว่า `.env`
-ตรวจค่าจำเป็นก่อนติดต่อ cluster และไม่ยอมรับ `REPLACE_ME`/`example.invalid`
-รายชื่อ BU อ่านจาก Namespace manifests ที่ `kube:apply` ใช้; เมื่อเพิ่ม BU ต้องเพิ่ม config สาขาและค่า env ของ BU นั้น
-ส่ง Secrets ผ่าน stdin โดยไม่พิมพ์ค่า credential และไม่ restart workloads
-จากนั้นใช้ `npm run kube:apply` เพื่อ deploy Workers และ DB ทั้ง 3 คู่พร้อม Core API/Web, Core DB และ RabbitMQ
-หากแก้รหัสผ่านบน DB ที่มีข้อมูลแล้ว ต้องจัดการ password rotation ใน DB และโหลด config ใหม่เอง ไม่ใช่เพียงแก้ Secret
-เช่นเดียวกับ RabbitMQ: boot import ไม่ overwrite บัญชี/objects ที่มีอยู่แล้ว
-การเปลี่ยน credentials ภายหลังต้องจัดการใน broker ให้ตรงกับ Secrets และให้ client โหลดค่าใหม่เอง
-
-ลบทรัพยากรของชุดนี้จาก cluster เมื่อไม่ต้องการใช้งานแล้ว:
-
-```sh
-npm run kube:purge
-```
-
-คำสั่งนี้แสดง kubectl context, ค้นหา namespaces ที่มี label `ida.io/role` ใน cluster
-ตรวจ role และ BU label ก่อนลบ แล้วลบ namespaces ที่พบพร้อมทุกอย่างภายใน รวมทั้ง Secrets, Workers, DB, RabbitMQ และ PVC
-จึงครอบคลุม BU ที่เพิ่มภายหลังหรือ BU เก่าที่ยังอยู่ใน cluster แม้ไม่อยู่ใน manifests ปัจจุบัน
-**ข้อมูลใน PVC อาจสูญหายถาวร**; PV/ที่เก็บข้อมูลจริงจะถูกจัดการตาม reclaim policy ของแต่ละ PV
-Local PV ที่สร้างด้วย `kube:storage` ใช้ `Retain`: purge ลบ PV หลังลบ namespaces แต่เก็บโฟลเดอร์ใต้ `KUBE_STORAGE_ROOT` และข้อมูลทั้งหมดไว้
-`kube:storage`/`kube:restore` สร้าง PV ใหม่ให้โฟลเดอร์ที่ชื่อและ UID/GID ตรงกับผู้รันได้ โดยไม่ล้าง claimRef ของ PV ที่ยังมีอยู่
-หาก namespace มีทรัพยากรอื่นเพิ่มเติม ทรัพยากรเหล่านั้นจะถูกลบด้วย; `.env` และไฟล์ในเครื่องไม่ถูกลบ
-ตรวจ `kubectl config current-context` ให้ตรงกับ cluster ที่ต้องการก่อนรันคำสั่งนี้
-
-### ข้อจำกัดและการเก็บข้อมูล
-
-- Default config เหลือ BU01–BU03; การเอา BU04–BU13 ออกจากไฟล์ไม่ได้ลบ workloads/DB/PVC ที่เคย deploy ไว้ใน cluster
-  ไม่มีการรัน prune, delete หรือหยุด containers อัตโนมัติ
-- DB ใช้ PostgreSQL 17 และ initialize database/user เฉพาะ volume ว่าง การแก้ Secret ไม่เปลี่ยนรหัสผ่านใน DB เดิม
-  ต้องจัดการ password rotation ใน PostgreSQL ให้ตรงกัน ไม่ลบ PVC เพื่อเปลี่ยนรหัสผ่าน
-- BU config ใช้ app user `bu01user`–`bu03user` แล้ว หาก DB เดิม initialize ด้วย `bu01_app`–`bu03_app`
-  ต้องปรับ role/สิทธิ์ของ DB เดิมให้ตรงกันก่อนนำ config นี้ไปใช้ ไม่ได้ rename user ที่มีอยู่ให้อัตโนมัติ
-- PVC เก็บข้อมูลข้ามการสร้าง Pod ใหม่ และ StatefulSet ใช้พฤติกรรมเริ่มต้นที่ไม่ลบ PVC เมื่อ scale down/ลบ StatefulSet
-  แต่การลบ namespace หรือ PVC อาจทำให้ข้อมูลสูญหายตาม reclaim policy ของ storage
-- DB และ RabbitMQ เป็น single instance สำหรับทดลอง ยังไม่มี HA, backup/restore, TLS หรือ schema migrations
-  ห้ามเพิ่ม replicas ของ DB เพื่อทำ replication โดยตรง ต้องวางระบบ replication/DB operator ก่อน
-  RabbitMQ ก็ยังไม่ได้ตั้ง clustering; ห้ามเพิ่ม replicas แล้วถือว่าเป็น broker cluster
-- หากขาด Secret/image หรือ storage ยังไม่พร้อม Pod อาจไม่เริ่มทำงาน; แม้ Pods เริ่มได้ Worker ก็ยังเป็น scaffold
-  ยังไม่รับ Queue หรือ query DB จริง ต้องเพิ่ม client และ logic ของแอปต่อ
-
-Core API/Web ใช้ ClusterIP; ยังไม่มี public Ingress/TLS หรือ authentication
-การเปิดให้ Mobile/Web ภายนอกเข้าถึงต้องวาง gateway/Ingress และสิทธิ์ก่อน
+เพิ่ม BU โดยเตรียม database ภายนอกและบัญชี/queue ของ RabbitMQ แล้วเพิ่ม `<BU_ID>_DB_CONNECTION`, DB password, admin settings และ queue connection ใน `.env` หากมี connection ใน API local settings ให้เพิ่มให้ตรงกันด้วย จากนั้นรัน migrate/seed และเลือก BU ด้วย runtime configuration
 
 ## Claude / Codex
 
@@ -480,17 +242,11 @@ Core API/Web ใช้ ClusterIP; ยังไม่มี public Ingress/TLS �
 ## References
 
 - [Nx custom commands](https://nx.dev/docs/reference/nx/executors)
-- [Kubernetes Kustomize](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/)
-- [Kubernetes StatefulSets และ persistent storage](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
-- [Kubernetes Local volumes](https://kubernetes.io/docs/concepts/storage/volumes/#local)
-- [Kubernetes การจอง PV ให้ PVC](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#reserving-a-persistentvolume)
-- [PostgreSQL official image และ database initialization](https://hub.docker.com/_/postgres)
 - [RabbitMQ definitions import](https://www.rabbitmq.com/docs/definitions)
 - [RabbitMQ password hashing](https://www.rabbitmq.com/docs/passwords)
 - [RabbitMQ access control](https://www.rabbitmq.com/docs/access-control)
 - [Docker Compose environment interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
 - [Node.js environment file parsing](https://nodejs.org/api/environment_variables.html)
-- [Kubernetes multi-tenancy](https://kubernetes.io/docs/concepts/security/multi-tenancy/)
 - [Nx Vite plugin](https://nx.dev/docs/technologies/build-tools/vite/introduction)
 - [React application setup](https://react.dev/learn/build-a-react-app-from-scratch)
 - [Vite static deployment](https://vite.dev/guide/static-deploy.html)

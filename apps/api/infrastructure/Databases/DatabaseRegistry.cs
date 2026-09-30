@@ -225,7 +225,6 @@ public sealed class DatabaseRegistry : IDisposable
             command.Parameters.AddWithValue(endpoint.SslMode);
             await command.ExecuteNonQueryAsync(ct);
         }
-        await using (var command = new NpgsqlCommand($"GRANT USAGE ON SCHEMA branch TO {Quote(Core.Username)}; GRANT SELECT ON branch.database_connections TO {Quote(Core.Username)};", connection, transaction)) await command.ExecuteNonQueryAsync(ct);
         await transaction.CommitAsync(ct);
         return endpoints;
     }

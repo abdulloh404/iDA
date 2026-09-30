@@ -62,7 +62,6 @@ out
 .env.*
 !.env.example
 **/*.secret.env
-infrastructure/rendered.yaml
 
 .nx
 

@@ -28,6 +28,8 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
 
         if (string.Equals(endpoint.Kind, "core", StringComparison.OrdinalIgnoreCase))
         {
+            var role = ProvisioningSql.Identifier(endpoint.Username);
+            await ProvisioningSql.ExecuteAsync(connection, transaction, $"GRANT USAGE ON SCHEMA branch TO {role}; GRANT SELECT ON branch.database_connections TO {role};", ct);
             await TenantSecurityProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
             await ingest.ApplyCoreAsync(connection, transaction, endpoint, ct);
         }
@@ -42,21 +44,39 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
         await transaction.CommitAsync(ct);
     }
 
-    private static async Task EnsureRuntimeRoleAsync(
+    private async Task EnsureRuntimeRoleAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         DatabaseEndpoint endpoint,
         CancellationToken ct)
     {
         await using var command = new NpgsqlCommand(
-            "SELECT rolsuper,rolbypassrls FROM pg_roles WHERE rolname=$1",
+            "SELECT rolsuper,rolbypassrls,rolcanlogin FROM pg_roles WHERE rolname=$1",
             connection,
             transaction);
         command.Parameters.AddWithValue(endpoint.Username);
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-            throw new InvalidOperationException($"Runtime role '{endpoint.Username}' does not exist for {endpoint.ConnectionKey}.");
-        if (reader.GetBoolean(0) || reader.GetBoolean(1))
-            throw new InvalidOperationException($"Runtime role '{endpoint.Username}' must not have SUPERUSER or BYPASSRLS.");
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (await reader.ReadAsync(ct))
+            {
+                if (reader.GetBoolean(0) || reader.GetBoolean(1))
+                    throw new InvalidOperationException($"Runtime role '{endpoint.Username}' must not have SUPERUSER or BYPASSRLS.");
+                if (!reader.GetBoolean(2))
+                    throw new InvalidOperationException($"Runtime role '{endpoint.Username}' must have LOGIN for {endpoint.ConnectionKey}.");
+                return;
+            }
+        }
+
+        var password = new NpgsqlConnectionStringBuilder(registry.ConnectionString(endpoint)).Password!;
+        var role = ProvisioningSql.Identifier(endpoint.Username);
+        var passwordLiteral = "E" + ProvisioningSql.Literal(password.Replace("\\", "\\\\"));
+        try
+        {
+            await ProvisioningSql.ExecuteAsync(connection, transaction, $"CREATE ROLE {role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD {passwordLiteral};", ct);
+        }
+        catch (PostgresException ex)
+        {
+            throw new InvalidOperationException($"Could not create runtime role '{endpoint.Username}' for {endpoint.ConnectionKey} (SQLSTATE {ex.SqlState}).");
+        }
     }
 }

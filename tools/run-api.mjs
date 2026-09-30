@@ -91,9 +91,18 @@ for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]
 process.on('exit', () => signalGroups('SIGKILL'));
 
 for (const service of services) {
-  const child = spawn('dotnet', [...service[mode], ...process.argv.slice(3)], {
+  const args = [...service[mode]];
+  if (mode !== 'start') {
+    const artifactsPath = fileURLToPath(new URL(`../.nx/api-run/${mode}/${service.directory}/`, import.meta.url));
+    args.splice(1, 0, '--artifacts-path', artifactsPath);
+  }
+  const child = spawn('dotnet', [...args, ...process.argv.slice(3)], {
     cwd: fileURLToPath(new URL(`../apps/api/${service.directory}/`, import.meta.url)),
-    env: { ...process.env, ...service.env },
+    env: {
+      ...process.env,
+      ...service.env,
+      IDA_API_CONFIG_DIRECTORY: fileURLToPath(new URL('../apps/api/core-api/api/', import.meta.url)),
+    },
     stdio: 'inherit',
     detached: true,
   });

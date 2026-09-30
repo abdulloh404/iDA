@@ -18,13 +18,9 @@ public class IdaDbContextFactory : IDesignTimeDbContextFactory<IdaDbContext>
             .AddEnvironmentVariables()
             .Build();
 
-        var connectionString =
-            config.GetConnectionString("PostgresMigration")
-            ?? config["CORE_DB_ADMIN_CONNECTION"]
-            ?? config["CORE_DB_CONNECTION"]
-            ?? config.GetConnectionString("Postgres")
-            ?? "Host=localhost;Port=5432;Database=appdb;Username=postgres";
-        var schema = config["CORE_DB_SCHEMA"] ?? IdaDbContext.CoreSchema;
+        using var registry = new DatabaseRegistry(config);
+        var connectionString = registry.ConnectionString(registry.Core, administrator: true);
+        var schema = registry.Core.SchemaName;
 
         var builder = new DbContextOptionsBuilder<IdaDbContext>();
         builder.UseNpgsql(connectionString, npgsql => npgsql

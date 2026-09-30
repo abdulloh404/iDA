@@ -43,7 +43,7 @@ internal sealed class BuWorkerOptions
         var databaseConnection = ReadDatabaseConnection(configuration, id, isDevelopment);
         var explicitQueueConnection = configuration["Queue:ConnectionString"];
         var queueConnection = string.IsNullOrWhiteSpace(explicitQueueConnection)
-            ? ReadFallbackQueueConnection(configuration, id)
+            ? configuration[$"{id}_QUEUE_CONNECTION"]
             : explicitQueueConnection;
         ValidateQueueConnection(queueConnection);
 
@@ -73,17 +73,17 @@ internal sealed class BuWorkerOptions
         var password = FirstSecret(configuration["Database:Password"], configuration[$"{id}_DB_PASSWORD"], configuration["BU_DB_PASSWORD"]);
         if (string.IsNullOrWhiteSpace(configured))
         {
+            configured = configuration[$"{id}_DB_CONNECTION"];
+            password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["Database:Password"], configuration["BU_DB_PASSWORD"]);
+        }
+        if (string.IsNullOrWhiteSpace(configured))
+        {
             configured = configuration.GetConnectionString(id);
             password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["Database:Password"], configuration["BU_DB_PASSWORD"]);
         }
         if (string.IsNullOrWhiteSpace(configured) && isDevelopment)
         {
             configured = ReadApiLocalConnection(id);
-            password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["BU_DB_PASSWORD"], configuration["Database:Password"]);
-        }
-        if (string.IsNullOrWhiteSpace(configured))
-        {
-            configured = configuration[$"{id}_DB_CONNECTION"];
             password = FirstSecret(configuration[$"{id}_DB_PASSWORD"], configuration["BU_DB_PASSWORD"], configuration["Database:Password"]);
         }
         if (string.IsNullOrWhiteSpace(configured))
@@ -109,35 +109,14 @@ internal sealed class BuWorkerOptions
 
     private static string? ReadApiLocalConnection(string id)
     {
-        var apiConfigPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "..", "..", "..", "..", "core-api", "api"));
+        var apiConfigPath = Environment.GetEnvironmentVariable("IDA_API_CONFIG_DIRECTORY")
+            ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "core-api", "api"));
         if (!Directory.Exists(apiConfigPath)) return null;
 
         var apiLocal = new ConfigurationBuilder().SetBasePath(apiConfigPath)
             .AddJsonFile("appsettings.Local.json", optional: true)
             .Build();
         return apiLocal.GetConnectionString(id);
-    }
-
-    private static string? ReadFallbackQueueConnection(IConfiguration configuration, string id)
-    {
-        var connectionString = configuration[$"{id}_QUEUE_CONNECTION"];
-        if (string.IsNullOrWhiteSpace(connectionString)) return null;
-
-        var host = configuration["Queue:Host"]?.Trim();
-        if (string.IsNullOrWhiteSpace(host)) return connectionString;
-        if (Uri.CheckHostName(host) == UriHostNameType.Unknown)
-            throw new InvalidOperationException("Queue:Host must be a valid host name or IP address.");
-
-        var port = configuration.GetValue<int?>("Queue:Port")
-            ?? configuration.GetValue<int?>("KUBE_QUEUE_PORT_FORWARD_PORT")
-            ?? 5672;
-        if (port is < 1 or > 65535)
-            throw new InvalidOperationException("Queue:Port must be between 1 and 65535.");
-        if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var uri)) return connectionString;
-
-        var builder = new UriBuilder(uri) { Host = host, Port = port };
-        return builder.Uri.AbsoluteUri;
     }
 
     private static void ValidateQueueConnection(string? connectionString)

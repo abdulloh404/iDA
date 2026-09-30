@@ -18,10 +18,11 @@
 ## Architecture
 
 - The Core API is one shared backend codebase and service for every BU.
-- The Worker is one shared codebase and container image; Kubernetes creates one configured runtime per BU from that image.
-- Data is split into one Core database and isolated BU databases; the current configuration enables BU01–BU03.
+- The Worker is one shared codebase; each running instance selects a BU through configuration.
+- Data is split into one external Core database and isolated external BU databases; the current configuration enables BU01–BU02.
 - BU separation applies to database connections and runtime configuration, not source code.
 - Each BU Worker receives its own `BU_ID`, queue settings, and BU database connection.
+- API and workers connect directly to configured PostgreSQL and RabbitMQ endpoints without Kubernetes.
 
 ## Verification
 

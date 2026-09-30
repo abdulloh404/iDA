@@ -69,8 +69,8 @@ if (command == "preview")
     return;
 }
 
-var apiConfig = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-    "..", "..", "..", "..", "core-api", "api"));
+var apiConfig = Environment.GetEnvironmentVariable("IDA_API_CONFIG_DIRECTORY")
+    ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "core-api", "api"));
 var configBase = Directory.Exists(apiConfig) ? apiConfig : AppContext.BaseDirectory;
 var config = new ConfigurationBuilder().SetBasePath(configBase)
     .AddJsonFile("appsettings.json", optional: true)
