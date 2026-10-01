@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface TreatmentListItem {
@@ -60,7 +61,16 @@ export const treatmentScreen: ScreenDescriptor<TreatmentListItem, TreatmentDetai
     path: '/master-data/accounting/treatment',
     titleTh: 'ข้อมูล Treatment',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<TreatmentListItem, TreatmentDetail, TreatmentInput>('treatments'),
+    api: {
+        resource: 'treatments',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TreatmentListItem>>('/api/master-data/treatments', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TreatmentDetail>(`/api/master-data/treatments/${id}`, { signal }),
+        create: (input) => tenantApi<TreatmentDetail>('/api/master-data/treatments', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TreatmentDetail>(`/api/master-data/treatments/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/treatments/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/treatments/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/treatments/export', { params }),
+    } satisfies CrudApi<TreatmentListItem, TreatmentDetail, TreatmentInput>,
     columns: [
         { key: 'code', header: 'รหัส Treatment', sortable: true, width: '180px' },
         { key: 'nameTh', header: 'ชื่อ Treatment', sortable: true },

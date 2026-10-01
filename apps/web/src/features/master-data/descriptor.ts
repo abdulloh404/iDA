@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { RouteObject } from 'react-router-dom';
 import type { ZodType } from 'zod';
 import type { CrudApi } from '../../api/crud';
+import type { LookupResource } from '../../api/lookup';
 import type { ColumnDef } from '../../components/data/DataTable';
 import type { SelectOption } from '../../components/form/fields';
 import type { PostcodeFill } from '../../components/form/PostcodeField';
@@ -22,7 +23,7 @@ export type FilterDef = {
     kind: 'lookup';
     name: string;
     label: string;
-    resource: string;
+    resource: LookupResource;
 } | {
     kind: 'date';
     name: string;
@@ -77,7 +78,7 @@ export type FieldDef = (FieldBase & {
     options: readonly SelectOption[];
 }) | (FieldBase & {
     kind: 'lookup';
-    resource: string;
+    resource: LookupResource;
     required?: boolean;
     emptyLabel?: string;
 }) | (FieldBase & {

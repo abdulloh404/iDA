@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { ITEM_DIRECTION_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface AdjustmentTypeListItem {
@@ -44,7 +45,16 @@ export const adjustmentTypeScreen: ScreenDescriptor<AdjustmentTypeListItem, Adju
     path: '/master-data/tax-402/adjustment-type',
     titleTh: 'ประเภทรายการปรับปรุง',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(2)' }],
-    api: createCrudApi<AdjustmentTypeListItem, AdjustmentTypeDetail, AdjustmentTypeInput>('adjustment-types'),
+    api: {
+        resource: 'adjustment-types',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<AdjustmentTypeListItem>>('/api/master-data/adjustment-types', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<AdjustmentTypeDetail>(`/api/master-data/adjustment-types/${id}`, { signal }),
+        create: (input) => tenantApi<AdjustmentTypeDetail>('/api/master-data/adjustment-types', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<AdjustmentTypeDetail>(`/api/master-data/adjustment-types/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/adjustment-types/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/adjustment-types/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/adjustment-types/export', { params }),
+    } satisfies CrudApi<AdjustmentTypeListItem, AdjustmentTypeDetail, AdjustmentTypeInput>,
     columns: [
         { key: 'code', header: 'รหัสประเภท', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ประเภทรายการปรับปรุง', sortable: true },

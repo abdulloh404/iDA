@@ -1,4 +1,4 @@
-import { api } from '../../api/client';
+import { tenantApi } from '../../api/client';
 export interface IngestInterface {
     code: string;
     name: string;
@@ -41,12 +41,12 @@ export type ScheduleInput = Pick<IngestSchedule, 'name' | 'intervalValue' | 'int
     firstRunAt?: string | null;
 };
 export const ingestConfigApi = {
-    get: (signal?: AbortSignal) => api<IngestConfiguration>('/api/ingest/config/', { signal }),
+    get: (signal?: AbortSignal) => tenantApi<IngestConfiguration>('/api/ingest/config/', { signal }),
     getCancelledSchedules: (cursor: CancelledScheduleCursor | null, signal?: AbortSignal) => {
         const query = cursor ? `?beforeAt=${encodeURIComponent(cursor.beforeAt)}&beforeId=${encodeURIComponent(cursor.beforeId)}` : '';
-        return api<CancelledSchedulePage>(`/api/ingest/config/schedules/cancelled${query}`, { signal });
+        return tenantApi<CancelledSchedulePage>(`/api/ingest/config/schedules/cancelled${query}`, { signal });
     },
-    saveInterface: (code: string, input: InterfaceInput) => api<IngestConfiguration>(`/api/ingest/config/interfaces/${encodeURIComponent(code)}`, { method: 'PUT', body: input }),
-    saveSchedule: (id: string | null, input: ScheduleInput) => api<IngestSchedule>(id ? `/api/ingest/config/schedules/${id}` : '/api/ingest/config/schedules', { method: id ? 'PUT' : 'POST', body: input }),
-    cancelSchedule: (id: string, revision: number) => api<void>(`/api/ingest/config/schedules/${id}/cancel`, { method: 'POST', body: { revision } }),
+    saveInterface: (code: string, input: InterfaceInput) => tenantApi<IngestConfiguration>(`/api/ingest/config/interfaces/${encodeURIComponent(code)}`, { method: 'PUT', body: input }),
+    saveSchedule: (id: string | null, input: ScheduleInput) => tenantApi<IngestSchedule>(id ? `/api/ingest/config/schedules/${id}` : '/api/ingest/config/schedules', { method: id ? 'PUT' : 'POST', body: input }),
+    cancelSchedule: (id: string, revision: number) => tenantApi<void>(`/api/ingest/config/schedules/${id}/cancel`, { method: 'POST', body: { revision } }),
 };

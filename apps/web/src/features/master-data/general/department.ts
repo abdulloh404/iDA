@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import type { ScreenDescriptor } from '../descriptor';
 export interface DepartmentListItem {
     id: string;
@@ -22,7 +23,16 @@ export interface DepartmentInput {
     status: RecordStatus;
     remark: string | null;
 }
-export const departmentApi = createCrudApi<DepartmentListItem, DepartmentDetail, DepartmentInput>('departments');
+export const departmentApi = {
+    resource: 'departments',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<DepartmentListItem>>('/api/master-data/departments', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<DepartmentDetail>(`/api/master-data/departments/${id}`, { signal }),
+    create: (input) => tenantApi<DepartmentDetail>('/api/master-data/departments', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<DepartmentDetail>(`/api/master-data/departments/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/departments/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/departments/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/departments/export', { params }),
+} satisfies CrudApi<DepartmentListItem, DepartmentDetail, DepartmentInput>;
 const departmentSchema = z.object({
     code: z
         .string()

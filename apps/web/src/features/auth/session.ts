@@ -1,4 +1,4 @@
-import { api } from '../../api/client';
+import { coreApi } from '../../api/client';
 export interface HospitalAccess {
     hospitalId: string;
     tenantApiPath: string;
@@ -24,10 +24,10 @@ export interface Session {
     permissions: string[];
 }
 export type Me = Omit<Session, 'token' | 'expiresAt'>;
-export const login = (username: string, password: string) => api<Session>('/api/auth/login', { method: 'POST', body: { username, password } });
-export const fetchMe = (signal?: AbortSignal) => api<Me>('/api/auth/me', { signal });
-export const refreshSession = (signal?: AbortSignal) => api<Session>('/api/auth/refresh', { method: 'POST', signal });
-export const switchHospital = (hospitalId: string) => api<Session>('/api/auth/switch-hospital', { method: 'POST', body: { hospitalId } });
+export const login = (username: string, password: string) => coreApi<Session>('/api/auth/login', { method: 'POST', body: { username, password } });
+export const fetchMe = (signal?: AbortSignal) => coreApi<Me>('/api/auth/me', { signal });
+export const refreshSession = (signal?: AbortSignal) => coreApi<Session>('/api/auth/refresh', { method: 'POST', signal });
+export const switchHospital = (hospitalId: string) => coreApi<Session>('/api/auth/switch-hospital', { method: 'POST', body: { hospitalId } });
 const STORAGE_KEY = 'ida.session';
 export function readStoredSession(): Session | null {
     try {

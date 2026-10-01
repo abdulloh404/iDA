@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface ArCodeListItem {
@@ -58,7 +59,16 @@ export const arCodeScreen: ScreenDescriptor<ArCodeListItem, ArCodeDetail, ArCode
     path: '/master-data/accounting/ar-code',
     titleTh: 'AR Code',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<ArCodeListItem, ArCodeDetail, ArCodeInput>('ar-codes'),
+    api: {
+        resource: 'ar-codes',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ArCodeListItem>>('/api/master-data/ar-codes', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ArCodeDetail>(`/api/master-data/ar-codes/${id}`, { signal }),
+        create: (input) => tenantApi<ArCodeDetail>('/api/master-data/ar-codes', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ArCodeDetail>(`/api/master-data/ar-codes/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/ar-codes/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/ar-codes/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/ar-codes/export', { params }),
+    } satisfies CrudApi<ArCodeListItem, ArCodeDetail, ArCodeInput>,
     columns: [
         { key: 'code', header: 'รหัส AR Code', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ชื่อ AR Code (ภาษาไทย)', sortable: true },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import type { ColumnDef } from '../../components/data/DataTable';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../master-data/descriptor';
@@ -85,7 +86,16 @@ export interface GuaranteeDetail {
     rowVersion: string;
 }
 export type GuaranteeInput = Omit<GuaranteeDetail, 'id' | 'rowVersion'>;
-export const guaranteeApi = createCrudApi<GuaranteeRow, GuaranteeDetail, GuaranteeInput>('guarantee-rates');
+export const guaranteeApi = {
+    resource: 'guarantee-rates',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<GuaranteeRow>>('/api/master-data/guarantee-rates', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<GuaranteeDetail>(`/api/master-data/guarantee-rates/${id}`, { signal }),
+    create: (input) => tenantApi<GuaranteeDetail>('/api/master-data/guarantee-rates', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<GuaranteeDetail>(`/api/master-data/guarantee-rates/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/guarantee-rates/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/guarantee-rates/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/guarantee-rates/export', { params }),
+} satisfies CrudApi<GuaranteeRow, GuaranteeDetail, GuaranteeInput>;
 interface TreatmentRow {
     id: string;
     guaranteeRateId: string;
@@ -102,9 +112,16 @@ interface TreatmentInput {
 const treatmentsChild: ChildTableDef<TreatmentRow, TreatmentInput> = {
     title: 'Treatment ที่ใช้เทียบ',
     description: 'ไม่ระบุเลย = เทียบทุก Treatment · แถวที่เป็น "ยกเว้น" จะถูกตัดออกจากการเทียบ',
-    api: createCrudApi<TreatmentRow, TreatmentRow & {
-        rowVersion: string;
-    }, TreatmentInput>('guarantee-rate-treatments'),
+    api: {
+        resource: 'guarantee-rate-treatments',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TreatmentRow>>('/api/master-data/guarantee-rate-treatments', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TreatmentRow & { rowVersion: string; }>(`/api/master-data/guarantee-rate-treatments/${id}`, { signal }),
+        create: (input) => tenantApi<TreatmentRow & { rowVersion: string; }>('/api/master-data/guarantee-rate-treatments', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TreatmentRow & { rowVersion: string; }>(`/api/master-data/guarantee-rate-treatments/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/guarantee-rate-treatments/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/guarantee-rate-treatments/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/guarantee-rate-treatments/export', { params }),
+    } satisfies CrudApi<TreatmentRow, TreatmentRow & { rowVersion: string; }, TreatmentInput>,
     parentKey: 'guaranteeRateId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่ม Treatment',
@@ -197,9 +214,16 @@ function daysChild(variant: DayVariant): ChildTableDef<DayRow, DayInput> {
             : exclusion
                 ? 'วันที่ไม่นำมาคิดประกันรายได้ — ระบุช่วงเวลาได้ถ้ายกเว้นเฉพาะบางช่วง'
                 : 'ช่วงเวลาที่นับ Transaction เข้ามาเทียบ แยกตามวันในสัปดาห์',
-        api: createCrudApi<DayRow, DayRow & {
-            rowVersion: string;
-        }, DayInput>('guarantee-rate-days'),
+        api: {
+            resource: 'guarantee-rate-days',
+            list: (params, signal?: AbortSignal) => tenantApi<Paged<DayRow>>('/api/master-data/guarantee-rate-days', { params, signal }),
+            get: (id, signal?: AbortSignal) => tenantApi<DayRow & { rowVersion: string; }>(`/api/master-data/guarantee-rate-days/${id}`, { signal }),
+            create: (input) => tenantApi<DayRow & { rowVersion: string; }>('/api/master-data/guarantee-rate-days', { method: 'POST', body: input }),
+            update: (id, input, rowVersion) => tenantApi<DayRow & { rowVersion: string; }>(`/api/master-data/guarantee-rate-days/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+            remove: (id) => tenantApi<void>(`/api/master-data/guarantee-rate-days/${id}`, { method: 'DELETE' }),
+            history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/guarantee-rate-days/${id}/history`, { signal }),
+            exportXlsx: (params) => tenantApiBlob('/api/master-data/guarantee-rate-days/export', { params }),
+        } satisfies CrudApi<DayRow, DayRow & { rowVersion: string; }, DayInput>,
         parentKey: 'guaranteeRateId',
         rowKey: (row) => row.id,
         addLabel: 'เพิ่มวัน',

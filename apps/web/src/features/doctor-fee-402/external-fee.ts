@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { REMARK_FIELD, STATUS_FIELD } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
 import { MONTH_OPTIONS, periodLabel, yearOptions } from '../shared/period';
@@ -50,7 +51,16 @@ export interface ExternalFeeInput {
     status: RecordStatus;
     remark: string | null;
 }
-export const externalFeeApi = createCrudApi<ExternalFeeListItem, ExternalFeeDetail, ExternalFeeInput>('external-fees');
+export const externalFeeApi = {
+    resource: 'external-fees',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<ExternalFeeListItem>>('/api/master-data/external-fees', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<ExternalFeeDetail>(`/api/master-data/external-fees/${id}`, { signal }),
+    create: (input) => tenantApi<ExternalFeeDetail>('/api/master-data/external-fees', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<ExternalFeeDetail>(`/api/master-data/external-fees/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/external-fees/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/external-fees/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/external-fees/export', { params }),
+} satisfies CrudApi<ExternalFeeListItem, ExternalFeeDetail, ExternalFeeInput>;
 export interface ExternalFeeLineRow {
     id: string;
     feeId: string;
@@ -72,9 +82,16 @@ export interface ExternalFeeLineInput {
     amount: number;
     attachmentUrl: string | null;
 }
-export const externalFeeLineApi = createCrudApi<ExternalFeeLineRow, ExternalFeeLineRow & {
-    rowVersion: string;
-}, ExternalFeeLineInput>('external-fee-lines');
+export const externalFeeLineApi = {
+    resource: 'external-fee-lines',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<ExternalFeeLineRow>>('/api/master-data/external-fee-lines', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<ExternalFeeLineRow & { rowVersion: string; }>(`/api/master-data/external-fee-lines/${id}`, { signal }),
+    create: (input) => tenantApi<ExternalFeeLineRow & { rowVersion: string; }>('/api/master-data/external-fee-lines', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<ExternalFeeLineRow & { rowVersion: string; }>(`/api/master-data/external-fee-lines/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/external-fee-lines/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/external-fee-lines/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/external-fee-lines/export', { params }),
+} satisfies CrudApi<ExternalFeeLineRow, ExternalFeeLineRow & { rowVersion: string; }, ExternalFeeLineInput>;
 const linesChild: ChildTableDef<ExternalFeeLineRow, ExternalFeeLineInput> = {
     title: 'รายละเอียดค่าแพทย์',
     description: 'แพทย์แต่ละท่านที่ออกไปในงานนี้ ยอดรวมของเอกสารคำนวณจากตารางนี้',

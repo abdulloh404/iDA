@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { RECEIPT_PAYMENT_FORM_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface ReceiptTypeListItem {
@@ -55,7 +56,16 @@ export const receiptTypeScreen: ScreenDescriptor<ReceiptTypeListItem, ReceiptTyp
     path: '/master-data/accounting/receipt-type',
     titleTh: 'ข้อมูลประเภทการรับเงิน',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<ReceiptTypeListItem, ReceiptTypeDetail, ReceiptTypeInput>('receipt-types'),
+    api: {
+        resource: 'receipt-types',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ReceiptTypeListItem>>('/api/master-data/receipt-types', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ReceiptTypeDetail>(`/api/master-data/receipt-types/${id}`, { signal }),
+        create: (input) => tenantApi<ReceiptTypeDetail>('/api/master-data/receipt-types', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ReceiptTypeDetail>(`/api/master-data/receipt-types/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/receipt-types/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/receipt-types/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/receipt-types/export', { params }),
+    } satisfies CrudApi<ReceiptTypeListItem, ReceiptTypeDetail, ReceiptTypeInput>,
     columns: [
         { key: 'code', header: 'รหัสประเภทการรับเงิน', sortable: true, width: '190px' },
         { key: 'nameTh', header: 'รายละเอียด', sortable: true },

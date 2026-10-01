@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { GL_POSTING_DATE_RULE_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface GlPostingSetupListItem {
@@ -47,7 +48,16 @@ export const glPostingSetupScreen: ScreenDescriptor<GlPostingSetupListItem, GlPo
     path: '/master-data/accounting/gl-posting-setup',
     titleTh: 'ข้อมูลตั้งค่าบันทึกบัญชี',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<GlPostingSetupListItem, GlPostingSetupDetail, GlPostingSetupInput>('gl-posting-setups'),
+    api: {
+        resource: 'gl-posting-setups',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<GlPostingSetupListItem>>('/api/master-data/gl-posting-setups', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<GlPostingSetupDetail>(`/api/master-data/gl-posting-setups/${id}`, { signal }),
+        create: (input) => tenantApi<GlPostingSetupDetail>('/api/master-data/gl-posting-setups', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<GlPostingSetupDetail>(`/api/master-data/gl-posting-setups/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/gl-posting-setups/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/gl-posting-setups/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/gl-posting-setups/export', { params }),
+    } satisfies CrudApi<GlPostingSetupListItem, GlPostingSetupDetail, GlPostingSetupInput>,
     columns: [
         { key: 'shareCategoryCode', header: 'รหัสประเภทส่วนแบ่ง', sortable: true, width: '180px' },
         { key: 'shareCategoryNameTh', header: 'ประเภทส่วนแบ่ง' },

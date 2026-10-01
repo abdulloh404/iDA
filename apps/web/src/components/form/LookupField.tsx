@@ -1,6 +1,7 @@
 import { Controller, useFormContext } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { fetchLookup, lookupLabel } from '../../api/lookup';
+import type { LookupResource } from '../../api/lookup';
 import { Icon } from '../Icon';
 import { FormField } from './FormField';
 import { Select } from './Select';
@@ -11,7 +12,7 @@ interface LookupFieldProps {
     hint?: string;
     disabled?: boolean;
     width?: 'sm' | 'md' | 'lg' | 'full';
-    resource: string;
+    resource: LookupResource;
     emptyLabel?: string;
 }
 export function LookupField({ resource, emptyLabel, ...props }: LookupFieldProps) {

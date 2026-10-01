@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface IncomeType402ListItem {
@@ -43,7 +44,16 @@ export const incomeType402Screen: ScreenDescriptor<IncomeType402ListItem, Income
     path: '/master-data/tax-402/income-type',
     titleTh: 'ประเภทเงินได้',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(2)' }],
-    api: createCrudApi<IncomeType402ListItem, IncomeType402Detail, IncomeType402Input>('income-types-402'),
+    api: {
+        resource: 'income-types-402',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<IncomeType402ListItem>>('/api/master-data/income-types-402', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<IncomeType402Detail>(`/api/master-data/income-types-402/${id}`, { signal }),
+        create: (input) => tenantApi<IncomeType402Detail>('/api/master-data/income-types-402', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<IncomeType402Detail>(`/api/master-data/income-types-402/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/income-types-402/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/income-types-402/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/income-types-402/export', { params }),
+    } satisfies CrudApi<IncomeType402ListItem, IncomeType402Detail, IncomeType402Input>,
     columns: [
         { key: 'code', header: 'รหัสประเภทเงินได้', sortable: true, width: '180px' },
         { key: 'nameTh', header: 'ประเภทเงินได้', sortable: true },

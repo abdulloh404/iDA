@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\iDA.Infrastructure\Ida.Infrastructure.csproj" />
+    <ProjectReference Include="..\iDA.Tanent\infrastructure\Ida.Tenant.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Npgsql" Version="9.0.4" />

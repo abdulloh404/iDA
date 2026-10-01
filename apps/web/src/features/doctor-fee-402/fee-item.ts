@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_FIELD } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
@@ -89,7 +90,16 @@ export const feeItemScreen: ScreenDescriptor<FeeItemListItem, FeeItemDetail, Fee
     path: '/doctor-fee-402/fee-item',
     titleTh: 'รายการค่าแพทย์',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<FeeItemListItem, FeeItemDetail, FeeItemInput>('fee-items'),
+    api: {
+        resource: 'fee-items',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<FeeItemListItem>>('/api/master-data/fee-items', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<FeeItemDetail>(`/api/master-data/fee-items/${id}`, { signal }),
+        create: (input) => tenantApi<FeeItemDetail>('/api/master-data/fee-items', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<FeeItemDetail>(`/api/master-data/fee-items/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/fee-items/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/fee-items/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/fee-items/export', { params }),
+    } satisfies CrudApi<FeeItemListItem, FeeItemDetail, FeeItemInput>,
     columns: [
         { key: 'refDocDate', header: 'วันที่เอกสาร', sortable: true, format: 'date', width: '130px' },
         { key: 'refDocNo', header: 'เลขที่เอกสาร', sortable: true, width: '140px' },

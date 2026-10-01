@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
 import { APPROVAL_STATUS_OPTIONS, BOARD_STATUS_OPTIONS, EMPLOYMENT_STATUS_OPTIONS, WHT_FORM_OPTIONS, } from './options';
@@ -133,7 +134,16 @@ export const doctorCodeScreen: ScreenDescriptor<DoctorCodeListItem, DoctorCodeDe
     path: '/doctors/code',
     titleTh: 'ข้อมูลรหัสแพทย์',
     breadcrumb: [{ label: 'จัดการข้อมูลแพทย์' }],
-    api: createCrudApi<DoctorCodeListItem, DoctorCodeDetail, DoctorCodeInput>('doctor-codes'),
+    api: {
+        resource: 'doctor-codes',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<DoctorCodeListItem>>('/api/master-data/doctor-codes', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<DoctorCodeDetail>(`/api/master-data/doctor-codes/${id}`, { signal }),
+        create: (input) => tenantApi<DoctorCodeDetail>('/api/master-data/doctor-codes', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<DoctorCodeDetail>(`/api/master-data/doctor-codes/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-codes/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-codes/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-codes/export', { params }),
+    } satisfies CrudApi<DoctorCodeListItem, DoctorCodeDetail, DoctorCodeInput>,
     columns: [
         { key: 'code', header: 'รหัสแพทย์', sortable: true, width: '150px' },
         { key: 'oldDoctorCode', header: 'รหัสแพทย์เก่า', sortable: true, width: '150px' },

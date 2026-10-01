@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface TreatmentCategoryListItem {
@@ -43,7 +44,16 @@ export const treatmentCategoryScreen: ScreenDescriptor<TreatmentCategoryListItem
     path: '/master-data/accounting/treatment-category',
     titleTh: 'ข้อมูล Treatment Category',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<TreatmentCategoryListItem, TreatmentCategoryDetail, TreatmentCategoryInput>('treatment-categories'),
+    api: {
+        resource: 'treatment-categories',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TreatmentCategoryListItem>>('/api/master-data/treatment-categories', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TreatmentCategoryDetail>(`/api/master-data/treatment-categories/${id}`, { signal }),
+        create: (input) => tenantApi<TreatmentCategoryDetail>('/api/master-data/treatment-categories', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TreatmentCategoryDetail>(`/api/master-data/treatment-categories/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/treatment-categories/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/treatment-categories/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/treatment-categories/export', { params }),
+    } satisfies CrudApi<TreatmentCategoryListItem, TreatmentCategoryDetail, TreatmentCategoryInput>,
     columns: [
         { key: 'code', header: 'รหัส Category', sortable: true, width: '180px' },
         { key: 'nameTh', header: 'รายละเอียด (ภาษาไทย)', sortable: true },

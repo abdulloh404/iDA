@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\..\iDA.Common\application\Ida.Common.Application.csproj" />
+    <ProjectReference Include="..\domain\Ida.Tenant.Domain.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Ida.Tenant.Application</AssemblyName>
+  </PropertyGroup>
+</Project>

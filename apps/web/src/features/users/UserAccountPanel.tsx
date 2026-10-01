@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
+import { coreApi } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import type { IconName } from '../../components/Icon';
 import { ApiErrorAlert } from '../../components/feedback/ApiErrorAlert';
@@ -48,10 +48,10 @@ export function UserAccountPanel({ id }: {
     const [issued, setIssued] = useState<ResetResult | null>(null);
     const account = useQuery({
         queryKey: ['master', 'users', id, 'account'],
-        queryFn: ({ signal }) => api<UserAccount>(`/api/master-data/users/${id}/account`, { signal }),
+        queryFn: ({ signal }) => coreApi<UserAccount>(`/api/master-data/users/${id}/account`, { signal }),
     });
     const reset = useMutation({
-        mutationFn: () => api<ResetResult>(`/api/master-data/users/${id}/reset-password`, { method: 'POST' }),
+        mutationFn: () => coreApi<ResetResult>(`/api/master-data/users/${id}/reset-password`, { method: 'POST' }),
         onSuccess: (result) => {
             setConfirming(false);
             setIssued(result);

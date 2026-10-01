@@ -1,4 +1,4 @@
-import { api } from '../../api/client';
+import { tenantApi } from '../../api/client';
 import type { ListParams, Paged } from '../../api/types';
 export const APPROVAL_STATUSES = [
     'DRAFT',
@@ -63,12 +63,17 @@ export interface RequestTypeOption {
 }
 export const APPROVAL_SCOPES = ['mine', 'pending', 'history'] as const;
 export type ApprovalScope = (typeof APPROVAL_SCOPES)[number];
+const approvalLists = {
+    mine: (params: ListParams, signal?: AbortSignal) => tenantApi<Paged<ApprovalRequestListItem>>('/api/approvals/mine', { params, signal }),
+    pending: (params: ListParams, signal?: AbortSignal) => tenantApi<Paged<ApprovalRequestListItem>>('/api/approvals/pending', { params, signal }),
+    history: (params: ListParams, signal?: AbortSignal) => tenantApi<Paged<ApprovalRequestListItem>>('/api/approvals/history', { params, signal }),
+};
 export const approvalsApi = {
-    list: (scope: ApprovalScope, params: ListParams, signal?: AbortSignal) => api<Paged<ApprovalRequestListItem>>(`/api/approvals/${scope}`, { params, signal }),
-    get: (id: string, signal?: AbortSignal) => api<ApprovalRequestDetail>(`/api/approvals/${id}`, { signal }),
-    decide: (id: string, action: 'APPROVE' | 'REJECT' | 'RETURN', comment: string | null) => api<ApprovalRequestDetail>(`/api/approvals/${id}/decide`, {
+    list: (scope: ApprovalScope, params: ListParams, signal?: AbortSignal) => approvalLists[scope](params, signal),
+    get: (id: string, signal?: AbortSignal) => tenantApi<ApprovalRequestDetail>(`/api/approvals/${id}`, { signal }),
+    decide: (id: string, action: 'APPROVE' | 'REJECT' | 'RETURN', comment: string | null) => tenantApi<ApprovalRequestDetail>(`/api/approvals/${id}/decide`, {
         method: 'POST',
         body: { action, comment },
     }),
-    requestTypes: (signal?: AbortSignal) => api<RequestTypeOption[]>('/api/approvals/request-types', { signal }),
+    requestTypes: (signal?: AbortSignal) => tenantApi<RequestTypeOption[]>('/api/approvals/request-types', { signal }),
 };

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { STATUS_COLUMN, STATUS_FIELD } from '../master-data/descriptor';
 import type { ChildTableDef } from '../master-data/descriptor';
 import { ACCOUNT_TYPE_OPTIONS, CONTRACT_STATUS_OPTIONS, CONTRACT_TYPE_OPTIONS, } from './options';
@@ -36,9 +37,16 @@ interface BankAccountInput {
 export const bankAccountsChild: ChildTableDef<BankAccountRow, BankAccountInput> = {
     title: 'บัญชีธนาคารสำหรับทำจ่าย',
     description: 'แพทย์หนึ่งท่านมีบัญชีที่ใช้งานอยู่ได้เพียงบัญชีเดียว',
-    api: createCrudApi<BankAccountRow, BankAccountRow & {
-        rowVersion: string;
-    }, BankAccountInput>('doctor-bank-accounts'),
+    api: {
+        resource: 'doctor-bank-accounts',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<BankAccountRow>>('/api/master-data/doctor-bank-accounts', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<BankAccountRow & { rowVersion: string; }>(`/api/master-data/doctor-bank-accounts/${id}`, { signal }),
+        create: (input) => tenantApi<BankAccountRow & { rowVersion: string; }>('/api/master-data/doctor-bank-accounts', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<BankAccountRow & { rowVersion: string; }>(`/api/master-data/doctor-bank-accounts/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-bank-accounts/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-bank-accounts/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-bank-accounts/export', { params }),
+    } satisfies CrudApi<BankAccountRow, BankAccountRow & { rowVersion: string; }, BankAccountInput>,
     parentKey: 'doctorId',
     parentValueFrom: 'doctorId',
     rowKey: (row) => row.id,
@@ -206,9 +214,16 @@ interface CodeSpecialtyInput {
 export const codeSpecialtiesChild: ChildTableDef<CodeSpecialtyRow, CodeSpecialtyInput> = {
     title: 'ความเชี่ยวชาญที่ประกาศ',
     description: 'ความเชี่ยวชาญที่แสดงบนเว็บไซต์และช่องทางอื่นของโรงพยาบาลนี้',
-    api: createCrudApi<CodeSpecialtyRow, CodeSpecialtyRow & {
-        rowVersion: string;
-    }, CodeSpecialtyInput>('doctor-specialties'),
+    api: {
+        resource: 'doctor-specialties',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<CodeSpecialtyRow>>('/api/master-data/doctor-specialties', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<CodeSpecialtyRow & { rowVersion: string; }>(`/api/master-data/doctor-specialties/${id}`, { signal }),
+        create: (input) => tenantApi<CodeSpecialtyRow & { rowVersion: string; }>('/api/master-data/doctor-specialties', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<CodeSpecialtyRow & { rowVersion: string; }>(`/api/master-data/doctor-specialties/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-specialties/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-specialties/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-specialties/export', { params }),
+    } satisfies CrudApi<CodeSpecialtyRow, CodeSpecialtyRow & { rowVersion: string; }, CodeSpecialtyInput>,
     parentKey: 'doctorCodeId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่มความเชี่ยวชาญ',
@@ -352,9 +367,16 @@ const contractStatusLabel = new Map(CONTRACT_STATUS_OPTIONS.map((o) => [o.value,
 export const contractsChild: ChildTableDef<ContractRow, ContractInput> = {
     title: 'สัญญาแพทย์',
     description: 'สัญญาชนิดเดียวกันของแพทย์รายนี้ห้ามมีช่วงวันที่ทับกัน',
-    api: createCrudApi<ContractRow, ContractRow & {
-        rowVersion: string;
-    }, ContractInput>('doctor-contracts'),
+    api: {
+        resource: 'doctor-contracts',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ContractRow>>('/api/master-data/doctor-contracts', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ContractRow & { rowVersion: string; }>(`/api/master-data/doctor-contracts/${id}`, { signal }),
+        create: (input) => tenantApi<ContractRow & { rowVersion: string; }>('/api/master-data/doctor-contracts', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ContractRow & { rowVersion: string; }>(`/api/master-data/doctor-contracts/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-contracts/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-contracts/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-contracts/export', { params }),
+    } satisfies CrudApi<ContractRow, ContractRow & { rowVersion: string; }, ContractInput>,
     parentKey: 'doctorCodeId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่มสัญญา',
@@ -497,9 +519,16 @@ export interface ScheduleRow {
 export const schedulesChild: ChildTableDef<ScheduleRow, ReadOnlyInput> = {
     title: 'ตารางออกตรวจ',
     description: 'ข้อมูลจากระบบ SSB หรือ iMED — แก้ไขที่ระบบต้นทาง',
-    api: createCrudApi<ScheduleRow, ScheduleRow & {
-        rowVersion: string;
-    }, ReadOnlyInput>('doctor-schedules'),
+    api: {
+        resource: 'doctor-schedules',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ScheduleRow>>('/api/master-data/doctor-schedules', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ScheduleRow & { rowVersion: string; }>(`/api/master-data/doctor-schedules/${id}`, { signal }),
+        create: (input) => tenantApi<ScheduleRow & { rowVersion: string; }>('/api/master-data/doctor-schedules', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ScheduleRow & { rowVersion: string; }>(`/api/master-data/doctor-schedules/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-schedules/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-schedules/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-schedules/export', { params }),
+    } satisfies CrudApi<ScheduleRow, ScheduleRow & { rowVersion: string; }, ReadOnlyInput>,
     parentKey: 'doctorCodeId',
     rowKey: (row) => String(row.id),
     readOnly: true,
@@ -530,9 +559,16 @@ export interface ScheduleOffRow {
 export const scheduleOffsChild: ChildTableDef<ScheduleOffRow, ReadOnlyInput> = {
     title: 'ตารางงดตรวจ',
     description: 'ข้อมูลจากระบบ SSB หรือ iMED — แก้ไขที่ระบบต้นทาง',
-    api: createCrudApi<ScheduleOffRow, ScheduleOffRow & {
-        rowVersion: string;
-    }, ReadOnlyInput>('doctor-schedule-offs'),
+    api: {
+        resource: 'doctor-schedule-offs',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ScheduleOffRow>>('/api/master-data/doctor-schedule-offs', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ScheduleOffRow & { rowVersion: string; }>(`/api/master-data/doctor-schedule-offs/${id}`, { signal }),
+        create: (input) => tenantApi<ScheduleOffRow & { rowVersion: string; }>('/api/master-data/doctor-schedule-offs', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ScheduleOffRow & { rowVersion: string; }>(`/api/master-data/doctor-schedule-offs/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-schedule-offs/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-schedule-offs/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-schedule-offs/export', { params }),
+    } satisfies CrudApi<ScheduleOffRow, ScheduleOffRow & { rowVersion: string; }, ReadOnlyInput>,
     parentKey: 'doctorCodeId',
     rowKey: (row) => String(row.id),
     readOnly: true,

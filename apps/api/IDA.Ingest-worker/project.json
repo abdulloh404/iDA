@@ -1,0 +1,30 @@
+{
+  "name": "api-ingest",
+  "root": "apps/api/IDA.Ingest-worker",
+  "sourceRoot": "apps/api/IDA.Ingest-worker",
+  "projectType": "application",
+  "implicitDependencies": [
+    "api-tenant-infrastructure"
+  ],
+  "tags": [
+    "type:backend",
+    "scope:tenant"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/apps/api/appsettings*.json"
+      ],
+      "outputs": [
+        "{projectRoot}/bin/Release/net9.0"
+      ],
+      "options": {
+        "command": "dotnet build Ida.Worker.Ingest.csproj --configuration Release",
+        "cwd": "apps/api/IDA.Ingest-worker"
+      }
+    }
+  }
+}

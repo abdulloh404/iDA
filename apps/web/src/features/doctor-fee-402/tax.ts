@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
@@ -51,7 +52,16 @@ export const hospitalPaidTaxScreen: ScreenDescriptor<HospitalPaidTaxListItem, Ho
     path: '/doctor-fee-402/hospital-paid-tax',
     titleTh: 'ตั้งค่าภาษีโรงพยาบาลออกให้',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<HospitalPaidTaxListItem, HospitalPaidTaxDetail, HospitalPaidTaxInput>('hospital-paid-taxes'),
+    api: {
+        resource: 'hospital-paid-taxes',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<HospitalPaidTaxListItem>>('/api/master-data/hospital-paid-taxes', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<HospitalPaidTaxDetail>(`/api/master-data/hospital-paid-taxes/${id}`, { signal }),
+        create: (input) => tenantApi<HospitalPaidTaxDetail>('/api/master-data/hospital-paid-taxes', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<HospitalPaidTaxDetail>(`/api/master-data/hospital-paid-taxes/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/hospital-paid-taxes/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/hospital-paid-taxes/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/hospital-paid-taxes/export', { params }),
+    } satisfies CrudApi<HospitalPaidTaxListItem, HospitalPaidTaxDetail, HospitalPaidTaxInput>,
     columns: [
         { key: 'doctorCode', header: 'รหัสแพทย์', sortable: true, width: '150px' },
         { key: 'doctorName', header: 'แพทย์' },
@@ -109,9 +119,16 @@ export interface TaxDeductionItemInput {
 const deductionItemsChild: ChildTableDef<TaxDeductionItemRow, TaxDeductionItemInput> = {
     title: 'รายการลดหย่อน',
     description: 'ยอดลดหย่อนแต่ละรายการตามทะเบียนรายการลดหย่อนของปีภาษีนั้น (หน้าจอ 32)',
-    api: createCrudApi<TaxDeductionItemRow, TaxDeductionItemRow & {
-        rowVersion: string;
-    }, TaxDeductionItemInput>('tax-deduction-items'),
+    api: {
+        resource: 'tax-deduction-items',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TaxDeductionItemRow>>('/api/master-data/tax-deduction-items', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TaxDeductionItemRow & { rowVersion: string; }>(`/api/master-data/tax-deduction-items/${id}`, { signal }),
+        create: (input) => tenantApi<TaxDeductionItemRow & { rowVersion: string; }>('/api/master-data/tax-deduction-items', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TaxDeductionItemRow & { rowVersion: string; }>(`/api/master-data/tax-deduction-items/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/tax-deduction-items/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/tax-deduction-items/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/tax-deduction-items/export', { params }),
+    } satisfies CrudApi<TaxDeductionItemRow, TaxDeductionItemRow & { rowVersion: string; }, TaxDeductionItemInput>,
     parentKey: 'deductionId',
     addLabel: 'เพิ่มรายการลดหย่อน',
     emptyHint: 'ยังไม่มีรายการลดหย่อนของปีภาษีนี้',
@@ -158,7 +175,16 @@ export const taxDeductionScreen: ScreenDescriptor<TaxDeductionListItem, TaxDeduc
     path: '/doctor-fee-402/tax-deduction',
     titleTh: 'ตั้งค่าภาษีลดหย่อน',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<TaxDeductionListItem, TaxDeductionDetail, TaxDeductionInput>('tax-deductions'),
+    api: {
+        resource: 'tax-deductions',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TaxDeductionListItem>>('/api/master-data/tax-deductions', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TaxDeductionDetail>(`/api/master-data/tax-deductions/${id}`, { signal }),
+        create: (input) => tenantApi<TaxDeductionDetail>('/api/master-data/tax-deductions', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TaxDeductionDetail>(`/api/master-data/tax-deductions/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/tax-deductions/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/tax-deductions/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/tax-deductions/export', { params }),
+    } satisfies CrudApi<TaxDeductionListItem, TaxDeductionDetail, TaxDeductionInput>,
     columns: [
         { key: 'doctorCode', header: 'รหัสแพทย์', sortable: true, width: '130px' },
         { key: 'doctorName', header: 'แพทย์' },
@@ -236,7 +262,16 @@ export const taxExemptionScreen: ScreenDescriptor<TaxExemptionListItem, TaxExemp
     path: '/doctor-fee-402/tax-exemption',
     titleTh: 'ข้อมูลยกเว้นภาษี',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<TaxExemptionListItem, TaxExemptionDetail, TaxExemptionInput>('tax-exemptions'),
+    api: {
+        resource: 'tax-exemptions',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<TaxExemptionListItem>>('/api/master-data/tax-exemptions', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<TaxExemptionDetail>(`/api/master-data/tax-exemptions/${id}`, { signal }),
+        create: (input) => tenantApi<TaxExemptionDetail>('/api/master-data/tax-exemptions', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<TaxExemptionDetail>(`/api/master-data/tax-exemptions/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/tax-exemptions/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/tax-exemptions/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/tax-exemptions/export', { params }),
+    } satisfies CrudApi<TaxExemptionListItem, TaxExemptionDetail, TaxExemptionInput>,
     columns: [
         { key: 'doctorCode', header: 'รหัสแพทย์', sortable: true, width: '130px' },
         { key: 'doctorName', header: 'แพทย์' },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface BankBranchListItem {
@@ -58,7 +59,16 @@ export const bankBranchScreen: ScreenDescriptor<BankBranchListItem, BankBranchDe
     path: '/master-data/accounting/bank-branch',
     titleTh: 'ข้อมูลสาขาธนาคาร',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<BankBranchListItem, BankBranchDetail, BankBranchInput>('bank-branches'),
+    api: {
+        resource: 'bank-branches',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<BankBranchListItem>>('/api/master-data/bank-branches', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<BankBranchDetail>(`/api/master-data/bank-branches/${id}`, { signal }),
+        create: (input) => coreApi<BankBranchDetail>('/api/master-data/bank-branches', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<BankBranchDetail>(`/api/master-data/bank-branches/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/bank-branches/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/bank-branches/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/bank-branches/export', { params }),
+    } satisfies CrudApi<BankBranchListItem, BankBranchDetail, BankBranchInput>,
     columns: [
         { key: 'bankCode', header: 'รหัสธนาคาร', sortable: true, width: '140px' },
         { key: 'bankNameTh', header: 'ธนาคาร', width: '200px' },

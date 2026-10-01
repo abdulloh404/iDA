@@ -1,4 +1,4 @@
-import { api } from '../../api/client';
+import { tenantApi } from '../../api/client';
 import type { ListParams, Paged } from '../../api/types';
 export type IngestStatus = 'Running' | 'Published' | 'Failed' | 'Withdrawn';
 export type SourceFilter = 'all' | 'his' | 'oracle' | 'custom';
@@ -164,9 +164,9 @@ export interface TriggerMockIngestResult {
     errorMessage: string | null;
 }
 export const ingestApi = {
-    listBatches: (params: ListParams, signal?: AbortSignal) => api<IngestBatchListDto>('/api/ingest/batches', { params, signal }),
-    getBatch: (id: string, signal?: AbortSignal) => api<IngestBatchDetail>(`/api/ingest/batches/${id}`, { signal }),
-    getRun: (id: string, signal?: AbortSignal) => api<IngestRunDetail>(`/api/ingest/runs/${id}`, { signal }),
-    getRawPage: (runId: string, page: number, signal?: AbortSignal) => api<IngestRawPageDetail>(`/api/ingest/runs/${runId}/raw-pages/${page}`, { signal }),
-    triggerMock: (input: TriggerMockIngestInput) => api<TriggerMockIngestResult>('/api/ingest/mock-runs', { method: 'POST', body: input }),
+    listBatches: (params: ListParams, signal?: AbortSignal) => tenantApi<IngestBatchListDto>('/api/ingest/batches', { params, signal }),
+    getBatch: (id: string, signal?: AbortSignal) => tenantApi<IngestBatchDetail>(`/api/ingest/batches/${id}`, { signal }),
+    getRun: (id: string, signal?: AbortSignal) => tenantApi<IngestRunDetail>(`/api/ingest/runs/${id}`, { signal }),
+    getRawPage: (runId: string, page: number, signal?: AbortSignal) => tenantApi<IngestRawPageDetail>(`/api/ingest/runs/${runId}/raw-pages/${page}`, { signal }),
+    triggerMock: (input: TriggerMockIngestInput) => tenantApi<TriggerMockIngestResult>('/api/ingest/mock-runs', { method: 'POST', body: input }),
 };

@@ -1,0 +1,29 @@
+{
+  "name": "api-common-application",
+  "root": "apps/api/iDA.Common/application",
+  "sourceRoot": "apps/api/iDA.Common/application",
+  "projectType": "library",
+  "implicitDependencies": [
+    "api-common-domain"
+  ],
+  "tags": [
+    "type:backend",
+    "scope:common"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "outputs": [
+        "{projectRoot}/bin/Release/net9.0"
+      ],
+      "options": {
+        "command": "dotnet build Ida.Common.Application.csproj --configuration Release",
+        "cwd": "apps/api/iDA.Common/application"
+      }
+    }
+  }
+}

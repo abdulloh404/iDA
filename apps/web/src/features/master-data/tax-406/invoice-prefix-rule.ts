@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { INVOICE_CALC_MODE_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface InvoicePrefixRuleListItem {
@@ -29,7 +30,16 @@ export const invoicePrefixRuleScreen: ScreenDescriptor<InvoicePrefixRuleListItem
     path: '/master-data/tax-406/invoice-prefix-rule',
     titleTh: 'ข้อมูล Import Invoice',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(6)' }],
-    api: createCrudApi<InvoicePrefixRuleListItem, InvoicePrefixRuleDetail, InvoicePrefixRuleInput>('invoice-prefix-rules'),
+    api: {
+        resource: 'invoice-prefix-rules',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<InvoicePrefixRuleListItem>>('/api/master-data/invoice-prefix-rules', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<InvoicePrefixRuleDetail>(`/api/master-data/invoice-prefix-rules/${id}`, { signal }),
+        create: (input) => tenantApi<InvoicePrefixRuleDetail>('/api/master-data/invoice-prefix-rules', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<InvoicePrefixRuleDetail>(`/api/master-data/invoice-prefix-rules/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/invoice-prefix-rules/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/invoice-prefix-rules/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/invoice-prefix-rules/export', { params }),
+    } satisfies CrudApi<InvoicePrefixRuleListItem, InvoicePrefixRuleDetail, InvoicePrefixRuleInput>,
     columns: [
         { key: 'invoicePrefix', header: 'Invoice ขึ้นต้นด้วย', sortable: true, width: '200px' },
         {

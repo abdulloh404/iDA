@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 import { allowanceItemsChild } from './tax-allowance-item';
@@ -34,7 +35,16 @@ export const taxAllowanceTypeScreen: ScreenDescriptor<AllowanceTypeListItem, All
     path: '/master-data/tax-402/tax-allowance-type',
     titleTh: 'ตั้งค่าประเภทลดหย่อน',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(2)' }],
-    api: createCrudApi<AllowanceTypeListItem, AllowanceTypeDetail, AllowanceTypeInput>('tax-allowance-types'),
+    api: {
+        resource: 'tax-allowance-types',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<AllowanceTypeListItem>>('/api/master-data/tax-allowance-types', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<AllowanceTypeDetail>(`/api/master-data/tax-allowance-types/${id}`, { signal }),
+        create: (input) => coreApi<AllowanceTypeDetail>('/api/master-data/tax-allowance-types', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<AllowanceTypeDetail>(`/api/master-data/tax-allowance-types/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/tax-allowance-types/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/tax-allowance-types/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/tax-allowance-types/export', { params }),
+    } satisfies CrudApi<AllowanceTypeListItem, AllowanceTypeDetail, AllowanceTypeInput>,
     columns: [
         { key: 'taxYear', header: 'ปีภาษี (ค.ศ.)', sortable: true, width: '150px' },
         {

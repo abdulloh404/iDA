@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { coreApi, coreApiBlob, tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
@@ -40,7 +41,16 @@ export const emailTemplateScreen: ScreenDescriptor<EmailTemplateListItem, EmailT
     path: '/system-settings/email-template',
     titleTh: 'ตั้งค่ารูปแบบอีเมล',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<EmailTemplateListItem, EmailTemplateDetail, EmailTemplateInput>('email-templates'),
+    api: {
+        resource: 'email-templates',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<EmailTemplateListItem>>('/api/master-data/email-templates', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<EmailTemplateDetail>(`/api/master-data/email-templates/${id}`, { signal }),
+        create: (input) => coreApi<EmailTemplateDetail>('/api/master-data/email-templates', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<EmailTemplateDetail>(`/api/master-data/email-templates/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/email-templates/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/email-templates/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/email-templates/export', { params }),
+    } satisfies CrudApi<EmailTemplateListItem, EmailTemplateDetail, EmailTemplateInput>,
     columns: [
         { key: 'name', header: 'Template', sortable: true, width: '260px' },
         { key: 'subject', header: 'หัวข้ออีเมล', sortable: true },
@@ -100,7 +110,16 @@ export const hisNotifyEmailScreen: ScreenDescriptor<HisNotifyEmailListItem, HisN
     path: '/system-settings/his-email',
     titleTh: 'ตั้งค่าอีเมล HIS',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<HisNotifyEmailListItem, HisNotifyEmailDetail, HisNotifyEmailInput>('his-notify-emails'),
+    api: {
+        resource: 'his-notify-emails',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<HisNotifyEmailListItem>>('/api/master-data/his-notify-emails', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<HisNotifyEmailDetail>(`/api/master-data/his-notify-emails/${id}`, { signal }),
+        create: (input) => tenantApi<HisNotifyEmailDetail>('/api/master-data/his-notify-emails', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<HisNotifyEmailDetail>(`/api/master-data/his-notify-emails/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/his-notify-emails/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/his-notify-emails/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/his-notify-emails/export', { params }),
+    } satisfies CrudApi<HisNotifyEmailListItem, HisNotifyEmailDetail, HisNotifyEmailInput>,
     columns: [
         { key: 'email', header: 'อีเมล', sortable: true },
         { key: 'recipientName', header: 'ชื่อผู้รับ', sortable: true },
@@ -172,7 +191,16 @@ export const incomeDocSettingScreen: ScreenDescriptor<IncomeDocSettingDetail, In
     path: '/system-settings/income-document',
     titleTh: 'ตั้งค่าการส่งเอกสารรายได้',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<IncomeDocSettingDetail, IncomeDocSettingDetail, IncomeDocSettingInput>('income-doc-settings'),
+    api: {
+        resource: 'income-doc-settings',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<IncomeDocSettingDetail>>('/api/master-data/income-doc-settings', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<IncomeDocSettingDetail>(`/api/master-data/income-doc-settings/${id}`, { signal }),
+        create: (input) => tenantApi<IncomeDocSettingDetail>('/api/master-data/income-doc-settings', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<IncomeDocSettingDetail>(`/api/master-data/income-doc-settings/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/income-doc-settings/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/income-doc-settings/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/income-doc-settings/export', { params }),
+    } satisfies CrudApi<IncomeDocSettingDetail, IncomeDocSettingDetail, IncomeDocSettingInput>,
     singleton: {
         intro: 'รอบและวันที่ระบบส่งเอกสารรายได้ทางอีเมลให้แพทย์ ตามปลายทางในหน้าตั้งค่าการออกสลิป',
     },
@@ -258,7 +286,16 @@ export const hisDoctorCodeMapScreen: ScreenDescriptor<HisDoctorCodeMapListItem, 
     path: '/system-settings/central-doctor-code',
     titleTh: 'ตั้งค่ารหัสแพทย์ไปเป็นแพทย์กลาง',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<HisDoctorCodeMapListItem, HisDoctorCodeMapDetail, HisDoctorCodeMapInput>('his-doctor-code-maps'),
+    api: {
+        resource: 'his-doctor-code-maps',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<HisDoctorCodeMapListItem>>('/api/master-data/his-doctor-code-maps', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<HisDoctorCodeMapDetail>(`/api/master-data/his-doctor-code-maps/${id}`, { signal }),
+        create: (input) => tenantApi<HisDoctorCodeMapDetail>('/api/master-data/his-doctor-code-maps', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<HisDoctorCodeMapDetail>(`/api/master-data/his-doctor-code-maps/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/his-doctor-code-maps/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/his-doctor-code-maps/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/his-doctor-code-maps/export', { params }),
+    } satisfies CrudApi<HisDoctorCodeMapListItem, HisDoctorCodeMapDetail, HisDoctorCodeMapInput>,
     columns: [
         { key: 'hisDoctorCode', header: 'รหัสแพทย์ (HIS)', sortable: true, width: '170px' },
         { key: 'doctorCode', header: 'รหัสแพทย์กลาง', sortable: true, width: '160px' },
@@ -327,7 +364,16 @@ export const expiryAlertSettingScreen: ScreenDescriptor<ExpiryAlertSettingDetail
     path: '/system-settings/expiry-alert',
     titleTh: 'ตั้งค่าแจ้งเตือนรายการใกล้หมดอายุ',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<ExpiryAlertSettingDetail, ExpiryAlertSettingDetail, ExpiryAlertSettingInput>('expiry-alert-settings'),
+    api: {
+        resource: 'expiry-alert-settings',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ExpiryAlertSettingDetail>>('/api/master-data/expiry-alert-settings', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ExpiryAlertSettingDetail>(`/api/master-data/expiry-alert-settings/${id}`, { signal }),
+        create: (input) => tenantApi<ExpiryAlertSettingDetail>('/api/master-data/expiry-alert-settings', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ExpiryAlertSettingDetail>(`/api/master-data/expiry-alert-settings/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/expiry-alert-settings/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/expiry-alert-settings/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/expiry-alert-settings/export', { params }),
+    } satisfies CrudApi<ExpiryAlertSettingDetail, ExpiryAlertSettingDetail, ExpiryAlertSettingInput>,
     singleton: {
         intro: 'ระบบแจ้งเตือนก่อนรายการที่มีวันสิ้นสุดหมดอายุ เช่น อัตราค่าเวร ประกันรายได้ สัญญาแพทย์',
     },
@@ -369,7 +415,16 @@ export const passwordPolicyScreen: ScreenDescriptor<PasswordPolicyDetail, Passwo
     path: '/system-settings/password-reset',
     titleTh: 'ตั้งค่าการรีเซ็ตรหัสผ่าน',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<PasswordPolicyDetail, PasswordPolicyDetail, PasswordPolicyInput>('password-policies'),
+    api: {
+        resource: 'password-policies',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<PasswordPolicyDetail>>('/api/master-data/password-policies', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<PasswordPolicyDetail>(`/api/master-data/password-policies/${id}`, { signal }),
+        create: (input) => coreApi<PasswordPolicyDetail>('/api/master-data/password-policies', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<PasswordPolicyDetail>(`/api/master-data/password-policies/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/password-policies/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/password-policies/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/password-policies/export', { params }),
+    } satisfies CrudApi<PasswordPolicyDetail, PasswordPolicyDetail, PasswordPolicyInput>,
     singleton: {
         intro: 'อายุรหัสผ่านของบัญชีประเภท Local ทั้งเครือ — รหัสที่หมดอายุเข้าสู่ระบบไม่ได้จนกว่าผู้ดูแลจะตั้งรหัสใหม่',
     },
@@ -435,7 +490,16 @@ export const checkinAreaScreen: ScreenDescriptor<CheckinAreaDetail, CheckinAreaD
     path: '/system-settings/checkin-area',
     titleTh: 'ตั้งค่าพื้นที่การลงชื่อเข้าเวร',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<CheckinAreaDetail, CheckinAreaDetail, CheckinAreaInput>('checkin-areas'),
+    api: {
+        resource: 'checkin-areas',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<CheckinAreaDetail>>('/api/master-data/checkin-areas', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<CheckinAreaDetail>(`/api/master-data/checkin-areas/${id}`, { signal }),
+        create: (input) => tenantApi<CheckinAreaDetail>('/api/master-data/checkin-areas', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<CheckinAreaDetail>(`/api/master-data/checkin-areas/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/checkin-areas/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/checkin-areas/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/checkin-areas/export', { params }),
+    } satisfies CrudApi<CheckinAreaDetail, CheckinAreaDetail, CheckinAreaInput>,
     singleton: {
         intro: 'จุดศูนย์กลางและรัศมีที่แพทย์ Check-in / Check-out เวรจากแอปพลิเคชันมือถือได้ ของโรงพยาบาลที่เปิดอยู่',
     },
@@ -507,7 +571,16 @@ export const termsScreen: ScreenDescriptor<TermsDetail, TermsDetail, TermsInput>
     path: '/system-settings/terms',
     titleTh: 'ตั้งค่าข้อกำหนดและเงื่อนไข',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<TermsDetail, TermsDetail, TermsInput>('terms'),
+    api: {
+        resource: 'terms',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<TermsDetail>>('/api/master-data/terms', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<TermsDetail>(`/api/master-data/terms/${id}`, { signal }),
+        create: (input) => coreApi<TermsDetail>('/api/master-data/terms', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<TermsDetail>(`/api/master-data/terms/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/terms/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/terms/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/terms/export', { params }),
+    } satisfies CrudApi<TermsDetail, TermsDetail, TermsInput>,
     singleton: {
         intro: 'ข้อกำหนดที่ผู้ใช้ต้องยอมรับก่อนใช้งานระบบ — แก้เนื้อหาแล้วนับเป็นฉบับใหม่ ผู้ใช้ทุกคนต้องยอมรับอีกครั้ง',
     },

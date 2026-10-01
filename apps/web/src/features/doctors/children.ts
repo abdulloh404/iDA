@@ -1,18 +1,19 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { coreApi, coreApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { STATUS_COLUMN, STATUS_FIELD } from '../master-data/descriptor';
 import type { ChildTableDef } from '../master-data/descriptor';
 import { ADDRESS_TYPE_OPTIONS, CONTACT_TYPE_OPTIONS, LICENSE_TYPE_OPTIONS, RELATION_GROUP_OPTIONS, } from './options';
 const doctorIdField = z.string().min(1);
 function doctorChild<TRow extends {
     id: string;
-}, TInput>(resource: string, def: Omit<ChildTableDef<TRow, TInput>, 'api' | 'parentKey' | 'rowKey'>): ChildTableDef<TRow, TInput> {
+}, TInput>(api: CrudApi<TRow, TRow & {
+    rowVersion: string;
+}, TInput>, def: Omit<ChildTableDef<TRow, TInput>, 'api' | 'parentKey' | 'rowKey'>): ChildTableDef<TRow, TInput> {
     return {
         ...def,
-        api: createCrudApi<TRow, TRow & {
-            rowVersion: string;
-        }, TInput>(resource),
+        api,
         parentKey: 'doctorId',
         rowKey: (row) => row.id,
     };
@@ -32,7 +33,16 @@ export interface LicenseRow extends ChildRow {
     detail: string | null;
     approvedDate: string | null;
 }
-export const licensesChild = doctorChild<LicenseRow, Omit<LicenseRow, 'id'>>('doctor-licenses', {
+export const licensesChild = doctorChild<LicenseRow, Omit<LicenseRow, 'id'>>({
+    resource: 'doctor-licenses',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<LicenseRow>>('/api/master-data/doctor-licenses', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<LicenseRow & { rowVersion: string; }>(`/api/master-data/doctor-licenses/${id}`, { signal }),
+    create: (input) => coreApi<LicenseRow & { rowVersion: string; }>('/api/master-data/doctor-licenses', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<LicenseRow & { rowVersion: string; }>(`/api/master-data/doctor-licenses/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-licenses/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-licenses/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-licenses/export', { params }),
+}, {
     title: 'ใบประกอบวิชาชีพและใบอนุญาต',
     description: 'ใบอนุญาตติดตัวแพทย์ ใช้ร่วมกันทุกโรงพยาบาลในเครือ',
     addLabel: 'เพิ่มใบอนุญาต',
@@ -135,7 +145,16 @@ export interface ContactRow extends ChildRow {
     isPrimary: boolean;
     isVerified: boolean;
 }
-export const contactsChild = doctorChild<ContactRow, Omit<ContactRow, 'id' | 'isVerified'>>('doctor-contacts', {
+export const contactsChild = doctorChild<ContactRow, Omit<ContactRow, 'id' | 'isVerified'>>({
+    resource: 'doctor-contacts',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<ContactRow>>('/api/master-data/doctor-contacts', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<ContactRow & { rowVersion: string; }>(`/api/master-data/doctor-contacts/${id}`, { signal }),
+    create: (input) => coreApi<ContactRow & { rowVersion: string; }>('/api/master-data/doctor-contacts', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<ContactRow & { rowVersion: string; }>(`/api/master-data/doctor-contacts/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-contacts/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-contacts/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-contacts/export', { params }),
+}, {
     title: 'ช่องทางติดต่อ',
     description: 'เบอร์โทรและอีเมลห้ามซ้ำกับแพทย์รายอื่นในระบบ',
     addLabel: 'เพิ่มช่องทางติดต่อ',
@@ -202,7 +221,16 @@ export interface AffiliationRow extends ChildRow {
     positionName: string | null;
     isPrimary: boolean;
 }
-export const affiliationsChild = doctorChild<AffiliationRow, Omit<AffiliationRow, 'id'>>('doctor-affiliations', {
+export const affiliationsChild = doctorChild<AffiliationRow, Omit<AffiliationRow, 'id'>>({
+    resource: 'doctor-affiliations',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<AffiliationRow>>('/api/master-data/doctor-affiliations', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<AffiliationRow & { rowVersion: string; }>(`/api/master-data/doctor-affiliations/${id}`, { signal }),
+    create: (input) => coreApi<AffiliationRow & { rowVersion: string; }>('/api/master-data/doctor-affiliations', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<AffiliationRow & { rowVersion: string; }>(`/api/master-data/doctor-affiliations/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-affiliations/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-affiliations/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-affiliations/export', { params }),
+}, {
     title: 'ต้นสังกัดและตำแหน่ง',
     addLabel: 'เพิ่มต้นสังกัด',
     columns: [
@@ -265,7 +293,16 @@ export interface AddressRow extends ChildRow {
     country: string | null;
     sameAsHome: boolean;
 }
-export const addressesChild = doctorChild<AddressRow, Omit<AddressRow, 'id'>>('doctor-addresses', {
+export const addressesChild = doctorChild<AddressRow, Omit<AddressRow, 'id'>>({
+    resource: 'doctor-addresses',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<AddressRow>>('/api/master-data/doctor-addresses', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<AddressRow & { rowVersion: string; }>(`/api/master-data/doctor-addresses/${id}`, { signal }),
+    create: (input) => coreApi<AddressRow & { rowVersion: string; }>('/api/master-data/doctor-addresses', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<AddressRow & { rowVersion: string; }>(`/api/master-data/doctor-addresses/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-addresses/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-addresses/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-addresses/export', { params }),
+}, {
     title: 'ที่อยู่',
     description: 'ที่อยู่สำหรับยื่นภาษีคือที่อยู่ที่พิมพ์ลงหนังสือรับรองการหักภาษี ณ ที่จ่าย',
     addLabel: 'เพิ่มที่อยู่',
@@ -370,7 +407,16 @@ export interface EducationRow extends ChildRow {
     country: string | null;
     remark: string | null;
 }
-export const educationsChild = doctorChild<EducationRow, Omit<EducationRow, 'id'>>('doctor-educations', {
+export const educationsChild = doctorChild<EducationRow, Omit<EducationRow, 'id'>>({
+    resource: 'doctor-educations',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<EducationRow>>('/api/master-data/doctor-educations', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<EducationRow & { rowVersion: string; }>(`/api/master-data/doctor-educations/${id}`, { signal }),
+    create: (input) => coreApi<EducationRow & { rowVersion: string; }>('/api/master-data/doctor-educations', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<EducationRow & { rowVersion: string; }>(`/api/master-data/doctor-educations/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-educations/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-educations/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-educations/export', { params }),
+}, {
     title: 'ประวัติการศึกษา',
     addLabel: 'เพิ่มประวัติการศึกษา',
     columns: [
@@ -435,7 +481,16 @@ export interface WorkHistoryRow extends ChildRow {
     workplace: string | null;
     remark: string | null;
 }
-export const workHistoriesChild = doctorChild<WorkHistoryRow, Omit<WorkHistoryRow, 'id'>>('doctor-work-histories', {
+export const workHistoriesChild = doctorChild<WorkHistoryRow, Omit<WorkHistoryRow, 'id'>>({
+    resource: 'doctor-work-histories',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<WorkHistoryRow>>('/api/master-data/doctor-work-histories', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<WorkHistoryRow & { rowVersion: string; }>(`/api/master-data/doctor-work-histories/${id}`, { signal }),
+    create: (input) => coreApi<WorkHistoryRow & { rowVersion: string; }>('/api/master-data/doctor-work-histories', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<WorkHistoryRow & { rowVersion: string; }>(`/api/master-data/doctor-work-histories/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-work-histories/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-work-histories/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-work-histories/export', { params }),
+}, {
     title: 'ประวัติการทำงาน',
     description: 'ประวัติการทำงานก่อนหรือนอกเครือโรงพยาบาล',
     addLabel: 'เพิ่มประวัติการทำงาน',
@@ -496,7 +551,16 @@ export interface DoctorHospitalLinkRow extends ChildRow {
     effectiveFrom: string;
     effectiveTo: string | null;
 }
-export const hospitalLinksChild = doctorChild<DoctorHospitalLinkRow, Omit<DoctorHospitalLinkRow, 'id' | 'hospitalName'>>('doctor-hospital-links', {
+export const hospitalLinksChild = doctorChild<DoctorHospitalLinkRow, Omit<DoctorHospitalLinkRow, 'id' | 'hospitalName'>>({
+    resource: 'doctor-hospital-links',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<DoctorHospitalLinkRow>>('/api/master-data/doctor-hospital-links', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<DoctorHospitalLinkRow & { rowVersion: string; }>(`/api/master-data/doctor-hospital-links/${id}`, { signal }),
+    create: (input) => coreApi<DoctorHospitalLinkRow & { rowVersion: string; }>('/api/master-data/doctor-hospital-links', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<DoctorHospitalLinkRow & { rowVersion: string; }>(`/api/master-data/doctor-hospital-links/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-hospital-links/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-hospital-links/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-hospital-links/export', { params }),
+}, {
     title: 'โรงพยาบาลที่แพทย์มีข้อมูล',
     description: 'บอกว่าแพทย์รายนี้มีข้อมูลอยู่ที่สาขาใดบ้าง และสาขาไหนเป็นต้นสังกัด',
     addLabel: 'เพิ่มโรงพยาบาล',
@@ -582,7 +646,16 @@ export interface FamilyRow extends ChildRow {
 }
 export const familiesChild = doctorChild<FamilyRow, Omit<FamilyRow, 'id' | 'nationalIdLast4'> & {
     nationalId: string | null;
-}>('doctor-families', {
+}>({
+    resource: 'doctor-families',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<FamilyRow>>('/api/master-data/doctor-families', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<FamilyRow & { rowVersion: string; }>(`/api/master-data/doctor-families/${id}`, { signal }),
+    create: (input) => coreApi<FamilyRow & { rowVersion: string; }>('/api/master-data/doctor-families', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<FamilyRow & { rowVersion: string; }>(`/api/master-data/doctor-families/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-families/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-families/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-families/export', { params }),
+}, {
     title: 'ครอบครัวและบุคคลอ้างอิง',
     description: 'ผู้ที่มีสิทธิ์ใช้สวัสดิการของแพทย์ต้องระบุความสัมพันธ์',
     addLabel: 'เพิ่มบุคคล',
@@ -686,7 +759,16 @@ export interface TrainingRow extends ChildRow {
     startDate: string | null;
     endDate: string | null;
 }
-export const trainingsChild = doctorChild<TrainingRow, Omit<TrainingRow, 'id'>>('doctor-trainings', {
+export const trainingsChild = doctorChild<TrainingRow, Omit<TrainingRow, 'id'>>({
+    resource: 'doctor-trainings',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<TrainingRow>>('/api/master-data/doctor-trainings', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<TrainingRow & { rowVersion: string; }>(`/api/master-data/doctor-trainings/${id}`, { signal }),
+    create: (input) => coreApi<TrainingRow & { rowVersion: string; }>('/api/master-data/doctor-trainings', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<TrainingRow & { rowVersion: string; }>(`/api/master-data/doctor-trainings/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-trainings/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-trainings/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-trainings/export', { params }),
+}, {
     title: 'ประวัติการฝึกอบรมและสัญญาใช้ทุน',
     addLabel: 'เพิ่มการฝึกอบรม',
     columns: [
@@ -753,7 +835,16 @@ export interface ProfessionalRecordRow extends ChildRow {
     recordType: string | null;
     conclusion: string | null;
 }
-export const professionalRecordsChild = doctorChild<ProfessionalRecordRow, Omit<ProfessionalRecordRow, 'id'>>('doctor-professional-records', {
+export const professionalRecordsChild = doctorChild<ProfessionalRecordRow, Omit<ProfessionalRecordRow, 'id'>>({
+    resource: 'doctor-professional-records',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<ProfessionalRecordRow>>('/api/master-data/doctor-professional-records', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<ProfessionalRecordRow & { rowVersion: string; }>(`/api/master-data/doctor-professional-records/${id}`, { signal }),
+    create: (input) => coreApi<ProfessionalRecordRow & { rowVersion: string; }>('/api/master-data/doctor-professional-records', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<ProfessionalRecordRow & { rowVersion: string; }>(`/api/master-data/doctor-professional-records/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-professional-records/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-professional-records/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-professional-records/export', { params }),
+}, {
     title: 'ประวัติวิชาชีพ',
     addLabel: 'เพิ่มประวัติวิชาชีพ',
     columns: [
@@ -815,7 +906,16 @@ export interface InsuranceRow extends ChildRow {
     endDate: string | null;
     documentUrl: string | null;
 }
-export const insurancesChild = doctorChild<InsuranceRow, Omit<InsuranceRow, 'id'>>('doctor-insurances', {
+export const insurancesChild = doctorChild<InsuranceRow, Omit<InsuranceRow, 'id'>>({
+    resource: 'doctor-insurances',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<InsuranceRow>>('/api/master-data/doctor-insurances', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<InsuranceRow & { rowVersion: string; }>(`/api/master-data/doctor-insurances/${id}`, { signal }),
+    create: (input) => coreApi<InsuranceRow & { rowVersion: string; }>('/api/master-data/doctor-insurances', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<InsuranceRow & { rowVersion: string; }>(`/api/master-data/doctor-insurances/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-insurances/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-insurances/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-insurances/export', { params }),
+}, {
     title: 'ประกันความรับผิดทางวิชาชีพ',
     addLabel: 'เพิ่มกรมธรรม์',
     columns: [
@@ -899,7 +999,16 @@ export const documentsChild = doctorChild<DocumentRow, {
     hasExpiry: boolean;
     expiryDate: string | null;
     status: RecordStatus;
-}>('doctor-documents', {
+}>({
+    resource: 'doctor-documents',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<DocumentRow>>('/api/master-data/doctor-documents', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<DocumentRow & { rowVersion: string; }>(`/api/master-data/doctor-documents/${id}`, { signal }),
+    create: (input) => coreApi<DocumentRow & { rowVersion: string; }>('/api/master-data/doctor-documents', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<DocumentRow & { rowVersion: string; }>(`/api/master-data/doctor-documents/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/doctor-documents/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctor-documents/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/doctor-documents/export', { params }),
+}, {
     title: 'เอกสารแนบ',
     description: 'สถานะใกล้หมดอายุคำนวณจากวันหมดอายุตอนแสดงผล ไม่ได้เก็บเป็นคอลัมน์',
     addLabel: 'เพิ่มเอกสาร',

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
 import { WELFARE_SCOPE_OPTIONS } from './options';
@@ -25,7 +26,16 @@ export const welfarePlanScreen: ScreenDescriptor<WelfarePlanListItem, WelfarePla
     path: '/doctors/welfare-plan',
     titleTh: 'แผนสวัสดิการแพทย์',
     breadcrumb: [{ label: 'จัดการข้อมูลแพทย์' }],
-    api: createCrudApi<WelfarePlanListItem, WelfarePlanDetail, WelfarePlanInput>('welfare-plans'),
+    api: {
+        resource: 'welfare-plans',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<WelfarePlanListItem>>('/api/master-data/welfare-plans', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<WelfarePlanDetail>(`/api/master-data/welfare-plans/${id}`, { signal }),
+        create: (input) => tenantApi<WelfarePlanDetail>('/api/master-data/welfare-plans', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<WelfarePlanDetail>(`/api/master-data/welfare-plans/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/welfare-plans/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/welfare-plans/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/welfare-plans/export', { params }),
+    } satisfies CrudApi<WelfarePlanListItem, WelfarePlanDetail, WelfarePlanInput>,
     columns: [
         { key: 'code', header: 'รหัสแผน', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ชื่อแผนสวัสดิการ', sortable: true },
@@ -126,9 +136,16 @@ export interface WelfareUsageRow {
 const welfareUsagesChild: ChildTableDef<WelfareUsageRow, Record<string, never>> = {
     title: 'รายการใช้สิทธิ์',
     description: 'ข้อมูลจากระบบ HIS — ยอดที่ใช้ไปของวงเงินคำนวณจากรายการเหล่านี้',
-    api: createCrudApi<WelfareUsageRow, WelfareUsageRow & {
-        rowVersion: string;
-    }, Record<string, never>>('doctor-welfare-usages'),
+    api: {
+        resource: 'doctor-welfare-usages',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<WelfareUsageRow>>('/api/master-data/doctor-welfare-usages', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<WelfareUsageRow & { rowVersion: string; }>(`/api/master-data/doctor-welfare-usages/${id}`, { signal }),
+        create: (input) => tenantApi<WelfareUsageRow & { rowVersion: string; }>('/api/master-data/doctor-welfare-usages', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<WelfareUsageRow & { rowVersion: string; }>(`/api/master-data/doctor-welfare-usages/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-welfare-usages/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-welfare-usages/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-welfare-usages/export', { params }),
+    } satisfies CrudApi<WelfareUsageRow, WelfareUsageRow & { rowVersion: string; }, Record<string, never>>,
     parentKey: 'welfareId',
     rowKey: (row) => String(row.id),
     readOnly: true,
@@ -185,7 +202,16 @@ export const doctorWelfareScreen: ScreenDescriptor<DoctorWelfareListItem, Doctor
     path: '/doctors/welfare',
     titleTh: 'สวัสดิการแพทย์',
     breadcrumb: [{ label: 'จัดการข้อมูลแพทย์' }],
-    api: createCrudApi<DoctorWelfareListItem, DoctorWelfareDetail, DoctorWelfareInput>('doctor-welfares'),
+    api: {
+        resource: 'doctor-welfares',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<DoctorWelfareListItem>>('/api/master-data/doctor-welfares', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<DoctorWelfareDetail>(`/api/master-data/doctor-welfares/${id}`, { signal }),
+        create: (input) => tenantApi<DoctorWelfareDetail>('/api/master-data/doctor-welfares', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<DoctorWelfareDetail>(`/api/master-data/doctor-welfares/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-welfares/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-welfares/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-welfares/export', { params }),
+    } satisfies CrudApi<DoctorWelfareListItem, DoctorWelfareDetail, DoctorWelfareInput>,
     columns: [
         { key: 'doctorGlobalCode', header: 'รหัสแพทย์กลาง', sortable: true, width: '170px' },
         { key: 'doctorName', header: 'แพทย์' },

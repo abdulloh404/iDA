@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface SubSpecialtyListItem {
@@ -56,7 +57,16 @@ export const subSpecialtyScreen: ScreenDescriptor<SubSpecialtyListItem, SubSpeci
     path: '/master-data/general/sub-specialty',
     titleTh: 'ความเชี่ยวชาญเฉพาะทาง',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<SubSpecialtyListItem, SubSpecialtyDetail, SubSpecialtyInput>('sub-specialties'),
+    api: {
+        resource: 'sub-specialties',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<SubSpecialtyListItem>>('/api/master-data/sub-specialties', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<SubSpecialtyDetail>(`/api/master-data/sub-specialties/${id}`, { signal }),
+        create: (input) => coreApi<SubSpecialtyDetail>('/api/master-data/sub-specialties', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<SubSpecialtyDetail>(`/api/master-data/sub-specialties/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/sub-specialties/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/sub-specialties/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/sub-specialties/export', { params }),
+    } satisfies CrudApi<SubSpecialtyListItem, SubSpecialtyDetail, SubSpecialtyInput>,
     columns: [
         { key: 'specialtyCode', header: 'รหัสความเชี่ยวชาญ', sortable: true, width: '180px' },
         { key: 'specialtyNameTh', header: 'ความเชี่ยวชาญ', sortable: false },

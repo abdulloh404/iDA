@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import { api } from '../../api/client';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged } from '../../api/types';
 import type { ScreenDescriptor } from '../master-data/descriptor';
 import { DutyScheduleFormScreen } from './DutyScheduleFormScreen';
 export const DUTY_SCHEDULE_STATUSES = [
@@ -48,15 +49,21 @@ export interface DutyScheduleInput {
     remark: string | null;
 }
 export const dutyScheduleApi = {
-    ...createCrudApi<DutyScheduleListItem, DutyScheduleDetail, DutyScheduleInput>('duty-schedules'),
-    remove: (id: string) => api<void>(`/api/duty-schedules/${id}`, { method: 'DELETE' }),
-};
-export const generateDutySchedule = (kind: DutyScheduleKind, year: number, month: number) => api<DutyScheduleDetail>('/api/duty-schedules/generate', {
+    resource: 'duty-schedules',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<DutyScheduleListItem>>('/api/master-data/duty-schedules', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<DutyScheduleDetail>(`/api/master-data/duty-schedules/${id}`, { signal }),
+    create: (input) => tenantApi<DutyScheduleDetail>('/api/master-data/duty-schedules', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<DutyScheduleDetail>(`/api/master-data/duty-schedules/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/duty-schedules/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/duty-schedules/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/duty-schedules/export', { params }),
+} satisfies CrudApi<DutyScheduleListItem, DutyScheduleDetail, DutyScheduleInput>;
+export const generateDutySchedule = (kind: DutyScheduleKind, year: number, month: number) => tenantApi<DutyScheduleDetail>('/api/duty-schedules/generate', {
     method: 'POST',
     body: { kind, year, month },
 });
-export const submitDutySchedule = (id: string) => api<DutyScheduleDetail>(`/api/duty-schedules/${id}/submit`, { method: 'POST' });
-export const rejectDutySchedule = (id: string, reason: string) => api<DutyScheduleDetail>(`/api/duty-schedules/${id}/reject`, {
+export const submitDutySchedule = (id: string) => tenantApi<DutyScheduleDetail>(`/api/duty-schedules/${id}/submit`, { method: 'POST' });
+export const rejectDutySchedule = (id: string, reason: string) => tenantApi<DutyScheduleDetail>(`/api/duty-schedules/${id}/reject`, {
     method: 'POST',
     body: { reason },
 });

@@ -1,12 +1,4 @@
 export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
-const CORE_RESOURCES = new Set([
-    'specialties', 'sub-specialties', 'hospitals', 'titles', 'banks', 'bank-branches', 'document-types',
-    'pit-tax-brackets', 'tax-allowance-types', 'tax-allowance-items', 'doctors', 'doctor-licenses',
-    'doctor-contacts', 'doctor-addresses', 'doctor-educations', 'doctor-trainings', 'doctor-work-histories',
-    'doctor-affiliations', 'doctor-families', 'doctor-professional-records', 'doctor-insurances',
-    'doctor-documents', 'doctor-hospital-links', 'users', 'user-hospital-roles', 'roles', 'email-templates',
-    'password-policies', 'terms',
-]);
 export interface FieldError {
     field: string;
     code: string;
@@ -66,22 +58,14 @@ export interface RequestInit_ {
     params?: Record<string, unknown>;
     signal?: AbortSignal;
 }
-function requestPath(path: string): string {
-    const pathname = path.split(/[?#]/, 1)[0];
-    if (pathname === '/hello' || pathname === '/healthz')
-        return `/core${path}`;
-    if (!/^\/api(?:\/|$)/.test(pathname))
-        return path;
-    const resource = /^\/api\/master-data\/([^/]+)/.exec(pathname)?.[1];
-    if (/^\/api\/auth(?:\/|$)/.test(pathname) || (resource && CORE_RESOURCES.has(resource)))
-        return `/core${path}`;
+function tenantPath(path: string): string {
     if (!activeTenantApiPath)
         throw new ApiError(401, 'tenant_not_selected', 'กรุณาเลือกโรงพยาบาลก่อนเรียกใช้งานข้อมูล');
     return `${activeTenantApiPath}${path}`;
 }
 async function request(path: string, init: RequestInit_ = {}): Promise<Response> {
     const requestToken = authToken;
-    const res = await fetch(`${API_BASE}${requestPath(path)}${qs(init.params)}`, {
+    const res = await fetch(`${API_BASE}${path}${qs(init.params)}`, {
         method: init.method ?? 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -111,14 +95,14 @@ async function request(path: string, init: RequestInit_ = {}): Promise<Response>
     const error = envelope?.error;
     throw new ApiError(res.status, error?.code ?? 'http_error', error?.message ?? `HTTP ${res.status}`, error?.traceId, error?.details);
 }
-export async function api<T>(path: string, init: RequestInit_ = {}): Promise<T> {
+async function requestJson<T>(path: string, init: RequestInit_ = {}): Promise<T> {
     const res = await request(path, init);
     if (res.status === 204)
         return undefined as T;
     const text = await res.text();
     return (text ? JSON.parse(text) : null) as T;
 }
-export async function apiBlob(path: string, init: RequestInit_ = {}): Promise<{
+async function requestBlob(path: string, init: RequestInit_ = {}): Promise<{
     blob: Blob;
     fileName: string;
 }> {
@@ -130,11 +114,7 @@ export async function apiBlob(path: string, init: RequestInit_ = {}): Promise<{
         fileName: match ? decodeURIComponent(match[1]) : 'export.xlsx',
     };
 }
-export interface HelloDto {
-    message: string;
-    serverTime: string;
-}
-export const getHello = (name: string) => api<HelloDto>(`/hello${name ? `?name=${encodeURIComponent(name)}` : ''}`);
-export const getHealth = () => api<{
-    status: string;
-}>('/healthz');
+export const coreApi = async <T>(path: string, init: RequestInit_ = {}) => requestJson<T>(`/core${path}`, init);
+export const tenantApi = async <T>(path: string, init: RequestInit_ = {}) => requestJson<T>(tenantPath(path), init);
+export const coreApiBlob = async (path: string, init: RequestInit_ = {}) => requestBlob(`/core${path}`, init);
+export const tenantApiBlob = async (path: string, init: RequestInit_ = {}) => requestBlob(tenantPath(path), init);

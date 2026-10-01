@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface NoWaitPaymentRuleListItem {
@@ -57,7 +58,16 @@ export const noWaitPaymentRuleScreen: ScreenDescriptor<NoWaitPaymentRuleListItem
     path: '/master-data/accounting/no-wait-payment-rule',
     titleTh: 'ตั้งค่ารายการไม่รอรับชำระ',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<NoWaitPaymentRuleListItem, NoWaitPaymentRuleDetail, NoWaitPaymentRuleInput>('no-wait-payment-rules'),
+    api: {
+        resource: 'no-wait-payment-rules',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<NoWaitPaymentRuleListItem>>('/api/master-data/no-wait-payment-rules', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<NoWaitPaymentRuleDetail>(`/api/master-data/no-wait-payment-rules/${id}`, { signal }),
+        create: (input) => tenantApi<NoWaitPaymentRuleDetail>('/api/master-data/no-wait-payment-rules', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<NoWaitPaymentRuleDetail>(`/api/master-data/no-wait-payment-rules/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/no-wait-payment-rules/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/no-wait-payment-rules/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/no-wait-payment-rules/export', { params }),
+    } satisfies CrudApi<NoWaitPaymentRuleListItem, NoWaitPaymentRuleDetail, NoWaitPaymentRuleInput>,
     columns: [
         {
             key: 'effectiveFrom',

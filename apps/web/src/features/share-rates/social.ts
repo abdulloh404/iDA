@@ -11,7 +11,7 @@ const treatmentField = {
     kind: 'lookup' as const,
     name: 'treatmentId',
     label: 'Treatment',
-    resource: 'treatments',
+    resource: 'treatments' as const,
     emptyLabel: 'ทุก Treatment',
 };
 export const socialArCodeShareScreen = shareRateScreen({

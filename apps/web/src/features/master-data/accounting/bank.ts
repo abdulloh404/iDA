@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface BankListItem {
@@ -45,7 +46,16 @@ export const bankScreen: ScreenDescriptor<BankListItem, BankDetail, BankInput> =
     path: '/master-data/accounting/bank',
     titleTh: 'ข้อมูลธนาคาร',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<BankListItem, BankDetail, BankInput>('banks'),
+    api: {
+        resource: 'banks',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<BankListItem>>('/api/master-data/banks', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<BankDetail>(`/api/master-data/banks/${id}`, { signal }),
+        create: (input) => coreApi<BankDetail>('/api/master-data/banks', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<BankDetail>(`/api/master-data/banks/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/banks/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/banks/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/banks/export', { params }),
+    } satisfies CrudApi<BankListItem, BankDetail, BankInput>,
     columns: [
         { key: 'code', header: 'รหัสธนาคาร', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ชื่อธนาคาร (ภาษาไทย)', sortable: true },

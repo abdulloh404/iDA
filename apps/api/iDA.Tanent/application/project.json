@@ -1,0 +1,31 @@
+{
+  "name": "api-tenant-application",
+  "root": "apps/api/iDA.Tanent/application",
+  "sourceRoot": "apps/api/iDA.Tanent/application",
+  "projectType": "library",
+  "implicitDependencies": [
+    "api-common-application",
+    "api-tenant-domain"
+  ],
+  "tags": [
+    "type:library",
+    "scope:tenant"
+  ],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/apps/api/appsettings*.json"
+      ],
+      "outputs": [
+        "{projectRoot}/bin/Release/net9.0"
+      ],
+      "options": {
+        "command": "dotnet build Ida.Tenant.Application.csproj --configuration Release",
+        "cwd": "apps/api/iDA.Tanent/application"
+      }
+    }
+  }
+}

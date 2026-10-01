@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface ClinicListItem {
@@ -47,7 +48,16 @@ export const clinicScreen: ScreenDescriptor<ClinicListItem, ClinicDetail, Clinic
     path: '/master-data/general/clinic',
     titleTh: 'คลินิก',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<ClinicListItem, ClinicDetail, ClinicInput>('clinics'),
+    api: {
+        resource: 'clinics',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ClinicListItem>>('/api/master-data/clinics', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ClinicDetail>(`/api/master-data/clinics/${id}`, { signal }),
+        create: (input) => tenantApi<ClinicDetail>('/api/master-data/clinics', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ClinicDetail>(`/api/master-data/clinics/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/clinics/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/clinics/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/clinics/export', { params }),
+    } satisfies CrudApi<ClinicListItem, ClinicDetail, ClinicInput>,
     columns: [
         { key: 'code', header: 'รหัสคลินิก', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ชื่อคลินิก (ภาษาไทย)', sortable: true },

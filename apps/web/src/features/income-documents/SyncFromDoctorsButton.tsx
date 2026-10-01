@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
+import { tenantApi } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { ApiErrorAlert } from '../../components/feedback/ApiErrorAlert';
 import { ConfirmDialog } from '../../components/feedback/ConfirmDialog';
@@ -17,7 +17,7 @@ export function SyncFromDoctorsButton() {
     const toast = useToast();
     const [confirming, setConfirming] = useState(false);
     const sync = useMutation({
-        mutationFn: () => api<SyncResult>('/api/master-data/slip-settings/sync', { method: 'POST' }),
+        mutationFn: () => tenantApi<SyncResult>('/api/master-data/slip-settings/sync', { method: 'POST' }),
         onSuccess: (result) => {
             invalidateAfterWrite(queryClient);
             setConfirming(false);

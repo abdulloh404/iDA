@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged } from '../../api/types';
 import type { ChildTableDef } from '../master-data/descriptor';
 export interface DutyShiftRow {
     id: string;
@@ -30,7 +32,16 @@ export interface DutyShiftInput {
     requiredDoctors: number;
     hourlyAmount: number | null;
 }
-export const dutyShiftApi = createCrudApi<DutyShiftRow, DutyShiftDetail, DutyShiftInput>('duty-shifts');
+export const dutyShiftApi = {
+    resource: 'duty-shifts',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<DutyShiftRow>>('/api/master-data/duty-shifts', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<DutyShiftDetail>(`/api/master-data/duty-shifts/${id}`, { signal }),
+    create: (input) => tenantApi<DutyShiftDetail>('/api/master-data/duty-shifts', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<DutyShiftDetail>(`/api/master-data/duty-shifts/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/duty-shifts/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/duty-shifts/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/duty-shifts/export', { params }),
+} satisfies CrudApi<DutyShiftRow, DutyShiftDetail, DutyShiftInput>;
 export interface DutyShiftDoctorRow {
     id: string;
     shiftId: string;
@@ -57,7 +68,16 @@ export interface DutyShiftDoctorInput {
     deductAmount: number | null;
     remark: string | null;
 }
-export const dutyShiftDoctorApi = createCrudApi<DutyShiftDoctorRow, DutyShiftDoctorDetail, DutyShiftDoctorInput>('duty-shift-doctors');
+export const dutyShiftDoctorApi = {
+    resource: 'duty-shift-doctors',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<DutyShiftDoctorRow>>('/api/master-data/duty-shift-doctors', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<DutyShiftDoctorDetail>(`/api/master-data/duty-shift-doctors/${id}`, { signal }),
+    create: (input) => tenantApi<DutyShiftDoctorDetail>('/api/master-data/duty-shift-doctors', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<DutyShiftDoctorDetail>(`/api/master-data/duty-shift-doctors/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/duty-shift-doctors/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/duty-shift-doctors/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/duty-shift-doctors/export', { params }),
+} satisfies CrudApi<DutyShiftDoctorRow, DutyShiftDoctorDetail, DutyShiftDoctorInput>;
 export type ShiftState = 'complete' | 'completeWithNoExam' | 'noExamOnly' | 'incomplete';
 export function shiftState(shift: DutyShiftRow): ShiftState {
     const complete = shift.completedCount >= shift.requiredDoctors;

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface DoctorGroupListItem {
@@ -48,7 +49,16 @@ export const doctorGroupScreen: ScreenDescriptor<DoctorGroupListItem, DoctorGrou
     path: '/master-data/general/doctor-group',
     titleTh: 'ข้อมูลกลุ่มแพทย์',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<DoctorGroupListItem, DoctorGroupDetail, DoctorGroupInput>('doctor-groups'),
+    api: {
+        resource: 'doctor-groups',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<DoctorGroupListItem>>('/api/master-data/doctor-groups', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<DoctorGroupDetail>(`/api/master-data/doctor-groups/${id}`, { signal }),
+        create: (input) => tenantApi<DoctorGroupDetail>('/api/master-data/doctor-groups', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<DoctorGroupDetail>(`/api/master-data/doctor-groups/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/doctor-groups/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/doctor-groups/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/doctor-groups/export', { params }),
+    } satisfies CrudApi<DoctorGroupListItem, DoctorGroupDetail, DoctorGroupInput>,
     columns: [
         { key: 'doctorTypeCode', header: 'รหัสประเภทแพทย์', sortable: true, width: '160px' },
         { key: 'doctorTypeNameTh', header: 'ประเภทแพทย์', width: '180px' },

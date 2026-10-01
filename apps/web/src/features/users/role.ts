@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { coreApi, coreApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { STATUS_COLUMN, STATUS_FIELD } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
 import { BREADCRUMB } from './user';
@@ -53,7 +54,16 @@ export const roleScreen: ScreenDescriptor<RoleListItem, RoleDetail, RoleInput> =
     path: '/users/role',
     titleTh: 'จัดการสิทธิ์',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<RoleListItem, RoleDetail, RoleInput>('roles'),
+    api: {
+        resource: 'roles',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<RoleListItem>>('/api/master-data/roles', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<RoleDetail>(`/api/master-data/roles/${id}`, { signal }),
+        create: (input) => coreApi<RoleDetail>('/api/master-data/roles', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<RoleDetail>(`/api/master-data/roles/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/roles/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/roles/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/roles/export', { params }),
+    } satisfies CrudApi<RoleListItem, RoleDetail, RoleInput>,
     columns: [
         { key: 'nameTh', header: 'สิทธิ์การใช้งาน', sortable: true },
         { key: 'code', header: 'รหัส', sortable: true, width: '190px' },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
@@ -51,9 +52,16 @@ interface HolidayExclusionInput {
 const exclusionsChild: ChildTableDef<HolidayExclusionRow, HolidayExclusionInput> = {
     title: 'ยกเว้นแพทย์',
     description: 'แพทย์ที่ไม่ได้รับอัตราวันหยุดนี้ — ยังได้ค่าเวรตามอัตราปกติ',
-    api: createCrudApi<HolidayExclusionRow, HolidayExclusionRow & {
-        rowVersion: string;
-    }, HolidayExclusionInput>('holiday-duty-exclusions'),
+    api: {
+        resource: 'holiday-duty-exclusions',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<HolidayExclusionRow>>('/api/master-data/holiday-duty-exclusions', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<HolidayExclusionRow & { rowVersion: string; }>(`/api/master-data/holiday-duty-exclusions/${id}`, { signal }),
+        create: (input) => tenantApi<HolidayExclusionRow & { rowVersion: string; }>('/api/master-data/holiday-duty-exclusions', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<HolidayExclusionRow & { rowVersion: string; }>(`/api/master-data/holiday-duty-exclusions/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/holiday-duty-exclusions/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/holiday-duty-exclusions/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/holiday-duty-exclusions/export', { params }),
+    } satisfies CrudApi<HolidayExclusionRow, HolidayExclusionRow & { rowVersion: string; }, HolidayExclusionInput>,
     parentKey: 'holidayRateId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่มแพทย์ที่ยกเว้น',
@@ -91,7 +99,16 @@ export const holidayDutyRateScreen: ScreenDescriptor<HolidayRow, HolidayDetail, 
     path: '/duty-rates/holiday',
     titleTh: 'อัตราค่าเวรวันหยุดเทศกาล',
     breadcrumb: [{ label: 'อัตราค่าเวรและประกันรายได้' }],
-    api: createCrudApi<HolidayRow, HolidayDetail, HolidayInput>('holiday-duty-rates'),
+    api: {
+        resource: 'holiday-duty-rates',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<HolidayRow>>('/api/master-data/holiday-duty-rates', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<HolidayDetail>(`/api/master-data/holiday-duty-rates/${id}`, { signal }),
+        create: (input) => tenantApi<HolidayDetail>('/api/master-data/holiday-duty-rates', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<HolidayDetail>(`/api/master-data/holiday-duty-rates/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/holiday-duty-rates/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/holiday-duty-rates/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/holiday-duty-rates/export', { params }),
+    } satisfies CrudApi<HolidayRow, HolidayDetail, HolidayInput>,
     columns: [
         { key: 'holidayName', header: 'วันหยุด', sortable: true },
         { key: 'startDate', header: 'เริ่มต้น', sortable: true, format: 'date', width: '130px' },

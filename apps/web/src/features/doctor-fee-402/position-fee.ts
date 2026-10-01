@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
 import { BREADCRUMB } from './approval';
@@ -51,7 +52,16 @@ export const positionFeeScreen: ScreenDescriptor<PositionFeeListItem, PositionFe
     path: '/doctor-fee-402/position-fee',
     titleTh: 'ค่าบริหาร / ตำแหน่ง',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<PositionFeeListItem, PositionFeeDetail, PositionFeeInput>('position-fees'),
+    api: {
+        resource: 'position-fees',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<PositionFeeListItem>>('/api/master-data/position-fees', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<PositionFeeDetail>(`/api/master-data/position-fees/${id}`, { signal }),
+        create: (input) => tenantApi<PositionFeeDetail>('/api/master-data/position-fees', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<PositionFeeDetail>(`/api/master-data/position-fees/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/position-fees/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/position-fees/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/position-fees/export', { params }),
+    } satisfies CrudApi<PositionFeeListItem, PositionFeeDetail, PositionFeeInput>,
     columns: [
         { key: 'doctorCode', header: 'รหัสแพทย์', sortable: true, width: '130px' },
         { key: 'doctorName', header: 'แพทย์' },

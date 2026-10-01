@@ -26,7 +26,7 @@ for (const tenant of topology.tenants) {
 const services = [
   {
     name: 'Core API',
-    directory: 'iDA.Core-api/api',
+    directory: 'iDA.Core/api',
     env: { Api__Mode: 'Core', ASPNETCORE_URLS: apiUrl, Api__PathBase: topology.core.prefix },
     dev: ['watch', '--non-interactive', '--project', 'Ida.Api.csproj', 'run', '--no-launch-profile', '--', '--urls', apiUrl],
     start: ['bin/Release/net9.0/iDA.Core.Api.dll'],
@@ -35,7 +35,7 @@ const services = [
   ...topology.tenants.flatMap((tenant) => [
     {
       name: `Tenant API ${tenant.key}`,
-      directory: 'iDA.Tanent-api',
+      directory: 'iDA.Tanent/api',
       bu: tenant.key,
       env: { Api__Mode: 'Tenant', Api__BuId: tenant.key, BU_ID: tenant.key, ASPNETCORE_URLS: tenant.url, Api__PathBase: tenant.prefix },
       dev: ['watch', '--non-interactive', '--project', 'Ida.Tenant.Api.csproj', 'run', '--no-launch-profile', '--', '--urls', tenant.url],
@@ -112,6 +112,10 @@ await new Promise((resolve, reject) => {
   gateway.listen(topology.gatewayPort, '127.0.0.1', resolve);
 });
 gateway.on('error', () => stop(1));
+process.stdout.write(`API gateway (${environment}): http://127.0.0.1:${topology.gatewayPort}\n`);
+for (const route of [topology.core, ...topology.tenants]) {
+  process.stdout.write(`  ${route.prefix} -> ${route.url}${route.prefix}\n`);
+}
 
 function serviceEnvironment(service) {
   const env = { ...runnerEnv };
@@ -144,6 +148,7 @@ for (const service of services) {
     const artifactsPath = fileURLToPath(new URL(`../.nx/api-run/${mode}/${service.directory}/${service.bu ?? 'CORE'}/`, import.meta.url));
     args.splice(1, 0, '--artifacts-path', artifactsPath);
   }
+  process.stdout.write(`Starting ${service.name} (${mode})...\n`);
   const child = spawn('dotnet', [...args, ...process.argv.slice(3)], {
     cwd: fileURLToPath(new URL(`../apps/api/${service.directory}/`, import.meta.url)),
     env: serviceEnvironment(service),
@@ -158,6 +163,7 @@ for (const service of services) {
       stop(1);
     });
     child.once('exit', (code, signal) => {
+      if (!stopping) process.stderr.write(`${service.name} exited with ${signal ? `signal ${signal}` : `code ${code ?? 'unknown'}`}.\n`);
       resolve();
       stop(code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 1));
     });

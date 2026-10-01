@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import type { ScreenDescriptor } from '../descriptor';
 export interface SpecialtyListItem {
     id: string;
@@ -26,7 +27,16 @@ export interface SpecialtyInput {
     status: RecordStatus;
     remark: string | null;
 }
-export const specialtyApi = createCrudApi<SpecialtyListItem, SpecialtyDetail, SpecialtyInput>('specialties');
+export const specialtyApi = {
+    resource: 'specialties',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<SpecialtyListItem>>('/api/master-data/specialties', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<SpecialtyDetail>(`/api/master-data/specialties/${id}`, { signal }),
+    create: (input) => coreApi<SpecialtyDetail>('/api/master-data/specialties', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<SpecialtyDetail>(`/api/master-data/specialties/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/specialties/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/specialties/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/specialties/export', { params }),
+} satisfies CrudApi<SpecialtyListItem, SpecialtyDetail, SpecialtyInput>;
 const specialtySchema = z.object({
     code: z
         .string()

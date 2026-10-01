@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface PrivilegeSubtypeListItem {
@@ -48,7 +49,16 @@ export const privilegeSubtypeScreen: ScreenDescriptor<PrivilegeSubtypeListItem, 
     path: '/master-data/general/privilege-subtype',
     titleTh: 'ข้อมูล Privilege SubType',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<PrivilegeSubtypeListItem, PrivilegeSubtypeDetail, PrivilegeSubtypeInput>('privilege-subtypes'),
+    api: {
+        resource: 'privilege-subtypes',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<PrivilegeSubtypeListItem>>('/api/master-data/privilege-subtypes', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<PrivilegeSubtypeDetail>(`/api/master-data/privilege-subtypes/${id}`, { signal }),
+        create: (input) => tenantApi<PrivilegeSubtypeDetail>('/api/master-data/privilege-subtypes', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<PrivilegeSubtypeDetail>(`/api/master-data/privilege-subtypes/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/privilege-subtypes/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/privilege-subtypes/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/privilege-subtypes/export', { params }),
+    } satisfies CrudApi<PrivilegeSubtypeListItem, PrivilegeSubtypeDetail, PrivilegeSubtypeInput>,
     columns: [
         { key: 'privilegeTypeCode', header: 'รหัส Privilege Type', sortable: true, width: '180px' },
         { key: 'privilegeTypeNameTh', header: 'Privilege Type', width: '200px' },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface InvoiceArCashRuleListItem {
@@ -26,7 +27,16 @@ export const invoiceArCashRuleScreen: ScreenDescriptor<InvoiceArCashRuleListItem
     path: '/master-data/tax-406/invoice-ar-cash-rule',
     titleTh: 'ข้อมูล Invoice AR/Cash',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(6)' }],
-    api: createCrudApi<InvoiceArCashRuleListItem, InvoiceArCashRuleDetail, InvoiceArCashRuleInput>('invoice-ar-cash-rules'),
+    api: {
+        resource: 'invoice-ar-cash-rules',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<InvoiceArCashRuleListItem>>('/api/master-data/invoice-ar-cash-rules', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<InvoiceArCashRuleDetail>(`/api/master-data/invoice-ar-cash-rules/${id}`, { signal }),
+        create: (input) => tenantApi<InvoiceArCashRuleDetail>('/api/master-data/invoice-ar-cash-rules', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<InvoiceArCashRuleDetail>(`/api/master-data/invoice-ar-cash-rules/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/invoice-ar-cash-rules/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/invoice-ar-cash-rules/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/invoice-ar-cash-rules/export', { params }),
+    } satisfies CrudApi<InvoiceArCashRuleListItem, InvoiceArCashRuleDetail, InvoiceArCashRuleInput>,
     columns: [
         { key: 'invoicePrefix', header: 'Invoice ขึ้นต้นด้วย', sortable: true, width: '220px' },
         {

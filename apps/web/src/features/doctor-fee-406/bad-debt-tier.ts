@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
@@ -61,7 +62,16 @@ export const badDebtTierScreen: ScreenDescriptor<BadDebtTierListItem, BadDebtTie
     path: '/doctor-fee-406/bad-debt-tier',
     titleTh: 'ตั้งค่าขั้นบันไดหนี้สูญ',
     breadcrumb: [{ label: 'จัดการค่าแพทย์ 40(6)' }],
-    api: createCrudApi<BadDebtTierListItem, BadDebtTierDetail, BadDebtTierInput>('bad-debt-tiers'),
+    api: {
+        resource: 'bad-debt-tiers',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<BadDebtTierListItem>>('/api/master-data/bad-debt-tiers', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<BadDebtTierDetail>(`/api/master-data/bad-debt-tiers/${id}`, { signal }),
+        create: (input) => tenantApi<BadDebtTierDetail>('/api/master-data/bad-debt-tiers', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<BadDebtTierDetail>(`/api/master-data/bad-debt-tiers/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/bad-debt-tiers/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/bad-debt-tiers/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/bad-debt-tiers/export', { params }),
+    } satisfies CrudApi<BadDebtTierListItem, BadDebtTierDetail, BadDebtTierInput>,
     columns: [
         {
             key: 'fromPercent',

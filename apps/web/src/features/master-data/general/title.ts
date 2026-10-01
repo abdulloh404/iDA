@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface TitleListItem {
@@ -38,7 +39,16 @@ export const titleScreen: ScreenDescriptor<TitleListItem, TitleDetail, TitleInpu
     path: '/master-data/general/title',
     titleTh: 'คำนำหน้าชื่อ',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<TitleListItem, TitleDetail, TitleInput>('titles'),
+    api: {
+        resource: 'titles',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<TitleListItem>>('/api/master-data/titles', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<TitleDetail>(`/api/master-data/titles/${id}`, { signal }),
+        create: (input) => coreApi<TitleDetail>('/api/master-data/titles', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<TitleDetail>(`/api/master-data/titles/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/titles/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/titles/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/titles/export', { params }),
+    } satisfies CrudApi<TitleListItem, TitleDetail, TitleInput>,
     columns: [
         { key: 'code', header: 'รหัสคำนำหน้าชื่อ', sortable: true, width: '200px' },
         { key: 'nameTh', header: 'คำนำหน้าชื่อ (ภาษาไทย)', sortable: true },

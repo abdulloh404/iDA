@@ -4,7 +4,9 @@
   "root": "apps/api",
   "sourceRoot": "apps/api",
   "implicitDependencies": [
-    "api-infrastructure"
+    "api-core",
+    "api-tenant",
+    "api-ingest"
   ],
   "projectType": "application",
   "tags": [
@@ -20,9 +22,9 @@
         "!{projectRoot}/**/obj/**/*"
       ],
       "outputs": [
-        "{projectRoot}/iDA.Core-api/api/bin/Release/net9.0",
+        "{projectRoot}/iDA.Core/api/bin/Release/net9.0",
         "{projectRoot}/IDA.Ingest-worker/bin/Release/net9.0",
-        "{projectRoot}/iDA.Tanent-api/bin/Release/net9.0"
+        "{projectRoot}/iDA.Tanent/api/bin/Release/net9.0"
       ],
       "options": {
         "command": "dotnet build iDA.sln --configuration Release",
@@ -70,8 +72,8 @@
         "build"
       ],
       "options": {
-        "command": "DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-${ASPNETCORE_ENVIRONMENT:-Local}} dotnet bin/Release/net9.0/iDA.Core.Api.dll --migrate-databases",
-        "cwd": "apps/api/iDA.Core-api/api"
+        "command": "node tools/run-database-task.mjs migrate",
+        "cwd": "."
       }
     },
     "seed": {
@@ -81,8 +83,8 @@
         "build"
       ],
       "options": {
-        "command": "DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-${ASPNETCORE_ENVIRONMENT:-Local}} dotnet bin/Release/net9.0/iDA.Core.Api.dll --seed",
-        "cwd": "apps/api/iDA.Core-api/api"
+        "command": "node tools/run-database-task.mjs seed",
+        "cwd": "."
       }
     }
   }

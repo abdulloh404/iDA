@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ChildTableDef } from '../descriptor';
 export interface AllowanceItem {
@@ -23,7 +24,16 @@ export interface AllowanceItemInput {
     displaySeq: number;
     status: RecordStatus;
 }
-export const allowanceItemApi = createCrudApi<AllowanceItem, AllowanceItemDetail, AllowanceItemInput>('tax-allowance-items');
+export const allowanceItemApi = {
+    resource: 'tax-allowance-items',
+    list: (params, signal?: AbortSignal) => coreApi<Paged<AllowanceItem>>('/api/master-data/tax-allowance-items', { params, signal }),
+    get: (id, signal?: AbortSignal) => coreApi<AllowanceItemDetail>(`/api/master-data/tax-allowance-items/${id}`, { signal }),
+    create: (input) => coreApi<AllowanceItemDetail>('/api/master-data/tax-allowance-items', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => coreApi<AllowanceItemDetail>(`/api/master-data/tax-allowance-items/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => coreApi<void>(`/api/master-data/tax-allowance-items/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/tax-allowance-items/${id}/history`, { signal }),
+    exportXlsx: (params) => coreApiBlob('/api/master-data/tax-allowance-items/export', { params }),
+} satisfies CrudApi<AllowanceItem, AllowanceItemDetail, AllowanceItemInput>;
 export const allowanceItemsChild: ChildTableDef<AllowanceItem, AllowanceItemInput> = {
     title: 'รายการลดหย่อน',
     description: 'รายการลดหย่อนที่ใช้กับปีภาษีนี้ เช่น ค่าลดหย่อนส่วนตัว เบี้ยประกันชีวิต',

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../master-data/descriptor';
 import type { ChildTableDef, FieldDef, FilterDef, ScreenDescriptor, } from '../master-data/descriptor';
@@ -88,7 +89,16 @@ export interface ShareRateDetail {
     rowVersion: string;
 }
 export type ShareRateInput = Omit<ShareRateDetail, 'id' | 'rowVersion'>;
-export const shareRateApi = createCrudApi<ShareRateRow, ShareRateDetail, ShareRateInput>('share-rates');
+export const shareRateApi = {
+    resource: 'share-rates',
+    list: (params, signal?: AbortSignal) => tenantApi<Paged<ShareRateRow>>('/api/master-data/share-rates', { params, signal }),
+    get: (id, signal?: AbortSignal) => tenantApi<ShareRateDetail>(`/api/master-data/share-rates/${id}`, { signal }),
+    create: (input) => tenantApi<ShareRateDetail>('/api/master-data/share-rates', { method: 'POST', body: input }),
+    update: (id, input, rowVersion) => tenantApi<ShareRateDetail>(`/api/master-data/share-rates/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+    remove: (id) => tenantApi<void>(`/api/master-data/share-rates/${id}`, { method: 'DELETE' }),
+    history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/share-rates/${id}/history`, { signal }),
+    exportXlsx: (params) => tenantApiBlob('/api/master-data/share-rates/export', { params }),
+} satisfies CrudApi<ShareRateRow, ShareRateDetail, ShareRateInput>;
 const commonColumns: readonly ColumnDef<ShareRateRow>[] = [
     {
         key: 'taxKind',
@@ -225,9 +235,16 @@ interface ExclusionInput {
 export const exclusionsChild: ChildTableDef<ExclusionRow, ExclusionInput> = {
     title: 'ยกเว้นแพทย์',
     description: 'แพทย์หรือกลุ่มแพทย์ที่ไม่ใช้อัตรานี้ — หนึ่งแถวเลือกได้อย่างเดียว',
-    api: createCrudApi<ExclusionRow, ExclusionRow & {
-        rowVersion: string;
-    }, ExclusionInput>('share-rate-exclusions'),
+    api: {
+        resource: 'share-rate-exclusions',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ExclusionRow>>('/api/master-data/share-rate-exclusions', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ExclusionRow & { rowVersion: string; }>(`/api/master-data/share-rate-exclusions/${id}`, { signal }),
+        create: (input) => tenantApi<ExclusionRow & { rowVersion: string; }>('/api/master-data/share-rate-exclusions', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ExclusionRow & { rowVersion: string; }>(`/api/master-data/share-rate-exclusions/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/share-rate-exclusions/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/share-rate-exclusions/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/share-rate-exclusions/export', { params }),
+    } satisfies CrudApi<ExclusionRow, ExclusionRow & { rowVersion: string; }, ExclusionInput>,
     parentKey: 'rateId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่มรายการยกเว้น',

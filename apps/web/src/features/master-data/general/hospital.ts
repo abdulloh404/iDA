@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface HospitalListItem {
@@ -70,7 +71,16 @@ export const hospitalScreen: ScreenDescriptor<HospitalListItem, HospitalDetail, 
     path: '/master-data/general/hospital',
     titleTh: 'สาขาโรงพยาบาล',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทั่วไป' }],
-    api: createCrudApi<HospitalListItem, HospitalDetail, HospitalInput>('hospitals'),
+    api: {
+        resource: 'hospitals',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<HospitalListItem>>('/api/master-data/hospitals', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<HospitalDetail>(`/api/master-data/hospitals/${id}`, { signal }),
+        create: (input) => coreApi<HospitalDetail>('/api/master-data/hospitals', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<HospitalDetail>(`/api/master-data/hospitals/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/hospitals/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/hospitals/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/hospitals/export', { params }),
+    } satisfies CrudApi<HospitalListItem, HospitalDetail, HospitalInput>,
     columns: [
         { key: 'id', header: 'รหัสโรงพยาบาล', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ชื่อสาขาโรงพยาบาล (ภาษาไทย)', sortable: true },

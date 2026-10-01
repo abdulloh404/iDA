@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface PaymentTypeListItem {
@@ -41,7 +42,16 @@ export const paymentTypeScreen: ScreenDescriptor<PaymentTypeListItem, PaymentTyp
     path: '/master-data/accounting/payment-type',
     titleTh: 'ข้อมูลประเภทการจ่ายเงิน',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<PaymentTypeListItem, PaymentTypeDetail, PaymentTypeInput>('payment-types'),
+    api: {
+        resource: 'payment-types',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<PaymentTypeListItem>>('/api/master-data/payment-types', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<PaymentTypeDetail>(`/api/master-data/payment-types/${id}`, { signal }),
+        create: (input) => tenantApi<PaymentTypeDetail>('/api/master-data/payment-types', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<PaymentTypeDetail>(`/api/master-data/payment-types/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/payment-types/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/payment-types/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/payment-types/export', { params }),
+    } satisfies CrudApi<PaymentTypeListItem, PaymentTypeDetail, PaymentTypeInput>,
     columns: [
         { key: 'code', header: 'รหัสประเภทการจ่ายเงิน', sortable: true, width: '200px' },
         { key: 'nameTh', header: 'ชื่อประเภทการจ่ายเงิน', sortable: true },

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
+import type { CrudApi } from '../../api/crud';
 import type { RecordStatus } from '../../api/types';
 import type { Crumb } from '../../components/layout/PageHeader';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from './descriptor';
@@ -25,6 +25,7 @@ export interface MasterInput {
 export interface SimpleMasterOptions {
     id: string;
     resource: string;
+    api: CrudApi<MasterListItem, MasterDetail, MasterInput>;
     path: string;
     titleTh: string;
     breadcrumb: readonly Crumb[];
@@ -52,7 +53,7 @@ export function simpleMasterScreen(options: SimpleMasterOptions): ScreenDescript
         path: options.path,
         titleTh: options.titleTh,
         breadcrumb: options.breadcrumb,
-        api: createCrudApi<MasterListItem, MasterDetail, MasterInput>(options.resource),
+        api: options.api,
         columns: [
             { key: 'code', header: codeLabel, sortable: true, width: '200px' },
             { key: 'nameTh', header: `${nameLabel} (ภาษาไทย)`, sortable: true },

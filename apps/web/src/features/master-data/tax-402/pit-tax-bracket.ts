@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { coreApi, coreApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface PitTaxBracketListItem {
@@ -44,7 +45,16 @@ export const pitTaxBracketScreen: ScreenDescriptor<PitTaxBracketListItem, PitTax
     path: '/master-data/tax-402/pit-tax-bracket',
     titleTh: 'เงื่อนไขภาษีเงินได้บุคคลธรรมดา',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(2)' }],
-    api: createCrudApi<PitTaxBracketListItem, PitTaxBracketDetail, PitTaxBracketInput>('pit-tax-brackets'),
+    api: {
+        resource: 'pit-tax-brackets',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<PitTaxBracketListItem>>('/api/master-data/pit-tax-brackets', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<PitTaxBracketDetail>(`/api/master-data/pit-tax-brackets/${id}`, { signal }),
+        create: (input) => coreApi<PitTaxBracketDetail>('/api/master-data/pit-tax-brackets', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<PitTaxBracketDetail>(`/api/master-data/pit-tax-brackets/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/pit-tax-brackets/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/pit-tax-brackets/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/pit-tax-brackets/export', { params }),
+    } satisfies CrudApi<PitTaxBracketListItem, PitTaxBracketDetail, PitTaxBracketInput>,
     columns: [
         { key: 'taxYear', header: 'ปีภาษี (ค.ศ.)', sortable: true, width: '130px' },
         {

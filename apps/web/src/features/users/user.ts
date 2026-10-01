@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { coreApi, coreApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
@@ -77,9 +78,16 @@ interface UserHospitalRoleInput {
 const hospitalRolesChild: ChildTableDef<UserHospitalRoleRow, UserHospitalRoleInput> = {
     title: 'สิทธิ์การใช้งานและสังกัดโรงพยาบาล',
     description: 'ผู้ใช้หนึ่งคนเข้าได้หลายโรงพยาบาล คนละสิทธิ์ — โรงพยาบาลเริ่มต้นคือที่ระบบเปิดให้หลังเข้าสู่ระบบ',
-    api: createCrudApi<UserHospitalRoleRow, UserHospitalRoleRow & {
-        rowVersion: string;
-    }, UserHospitalRoleInput>('user-hospital-roles'),
+    api: {
+        resource: 'user-hospital-roles',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<UserHospitalRoleRow>>('/api/master-data/user-hospital-roles', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<UserHospitalRoleRow & { rowVersion: string; }>(`/api/master-data/user-hospital-roles/${id}`, { signal }),
+        create: (input) => coreApi<UserHospitalRoleRow & { rowVersion: string; }>('/api/master-data/user-hospital-roles', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<UserHospitalRoleRow & { rowVersion: string; }>(`/api/master-data/user-hospital-roles/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/user-hospital-roles/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/user-hospital-roles/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/user-hospital-roles/export', { params }),
+    } satisfies CrudApi<UserHospitalRoleRow, UserHospitalRoleRow & { rowVersion: string; }, UserHospitalRoleInput>,
     parentKey: 'userId',
     addLabel: 'เพิ่มสิทธิ์',
     emptyHint: 'ยังไม่มีสิทธิ์ที่โรงพยาบาลใด — ผู้ใช้จะเข้าสู่ระบบไม่ได้จนกว่าจะเพิ่มอย่างน้อยหนึ่งแถว',
@@ -124,7 +132,16 @@ export const userScreen: ScreenDescriptor<UserListItem, UserDetail, UserInput> =
     path: '/users/user',
     titleTh: 'จัดการผู้ใช้งาน',
     breadcrumb: BREADCRUMB,
-    api: createCrudApi<UserListItem, UserDetail, UserInput>('users'),
+    api: {
+        resource: 'users',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<UserListItem>>('/api/master-data/users', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<UserDetail>(`/api/master-data/users/${id}`, { signal }),
+        create: (input) => coreApi<UserDetail>('/api/master-data/users', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<UserDetail>(`/api/master-data/users/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/users/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/users/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/users/export', { params }),
+    } satisfies CrudApi<UserListItem, UserDetail, UserInput>,
     columns: [
         { key: 'displayName', header: 'ชื่อ-นามสกุล', sortable: true },
         { key: 'employeeCode', header: 'รหัสพนักงาน', sortable: true, width: '130px' },

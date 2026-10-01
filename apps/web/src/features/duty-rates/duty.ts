@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../master-data/descriptor';
 import type { ChildTableDef, ScreenDescriptor } from '../master-data/descriptor';
@@ -70,9 +71,16 @@ interface DutyDayInput {
 const daysChild: ChildTableDef<DutyDayRow, DutyDayInput> = {
     title: 'อัตราค่าเวรรายวัน',
     description: 'บาท/ชั่วโมง แยกตามวันในสัปดาห์ — วันที่ไม่ได้กำหนดจะใช้อัตราปกติของแผนก',
-    api: createCrudApi<DutyDayRow, DutyDayRow & {
-        rowVersion: string;
-    }, DutyDayInput>('duty-rate-days'),
+    api: {
+        resource: 'duty-rate-days',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<DutyDayRow>>('/api/master-data/duty-rate-days', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<DutyDayRow & { rowVersion: string; }>(`/api/master-data/duty-rate-days/${id}`, { signal }),
+        create: (input) => tenantApi<DutyDayRow & { rowVersion: string; }>('/api/master-data/duty-rate-days', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<DutyDayRow & { rowVersion: string; }>(`/api/master-data/duty-rate-days/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/duty-rate-days/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/duty-rate-days/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/duty-rate-days/export', { params }),
+    } satisfies CrudApi<DutyDayRow, DutyDayRow & { rowVersion: string; }, DutyDayInput>,
     parentKey: 'dutyRateId',
     rowKey: (row) => row.id,
     addLabel: 'เพิ่มวัน',
@@ -143,7 +151,16 @@ export const dutyRateScreen: ScreenDescriptor<DutyRow, DutyDetail, DutyInput> = 
     path: '/duty-rates/duty',
     titleTh: 'อัตราค่าแพทย์เวร',
     breadcrumb: [{ label: 'อัตราค่าเวรและประกันรายได้' }],
-    api: createCrudApi<DutyRow, DutyDetail, DutyInput>('duty-rates'),
+    api: {
+        resource: 'duty-rates',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<DutyRow>>('/api/master-data/duty-rates', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<DutyDetail>(`/api/master-data/duty-rates/${id}`, { signal }),
+        create: (input) => tenantApi<DutyDetail>('/api/master-data/duty-rates', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<DutyDetail>(`/api/master-data/duty-rates/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/duty-rates/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/duty-rates/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/duty-rates/export', { params }),
+    } satisfies CrudApi<DutyRow, DutyDetail, DutyInput>,
     columns: [
         { key: 'departmentName', header: 'แผนก', sortable: true },
         {

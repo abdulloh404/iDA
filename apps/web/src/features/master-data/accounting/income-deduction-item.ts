@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { ITEM_DIRECTION_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface IncomeDeductionItemListItem {
@@ -61,7 +62,16 @@ export const incomeDeductionItemScreen: ScreenDescriptor<IncomeDeductionItemList
     path: '/master-data/accounting/income-deduction-item',
     titleTh: 'ข้อมูลรายได้และรายการหัก',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลักทางบัญชี' }],
-    api: createCrudApi<IncomeDeductionItemListItem, IncomeDeductionItemDetail, IncomeDeductionItemInput>('income-deduction-items'),
+    api: {
+        resource: 'income-deduction-items',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<IncomeDeductionItemListItem>>('/api/master-data/income-deduction-items', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<IncomeDeductionItemDetail>(`/api/master-data/income-deduction-items/${id}`, { signal }),
+        create: (input) => tenantApi<IncomeDeductionItemDetail>('/api/master-data/income-deduction-items', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<IncomeDeductionItemDetail>(`/api/master-data/income-deduction-items/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/income-deduction-items/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/income-deduction-items/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/income-deduction-items/export', { params }),
+    } satisfies CrudApi<IncomeDeductionItemListItem, IncomeDeductionItemDetail, IncomeDeductionItemInput>,
     columns: [
         { key: 'code', header: 'รหัสรายการ', sortable: true, width: '150px' },
         { key: 'nameTh', header: 'ชื่อรายการ', sortable: true },

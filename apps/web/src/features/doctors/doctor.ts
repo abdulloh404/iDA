@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { coreApi, coreApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
 import { APPROVAL_STATUS_OPTIONS, GENDER_OPTIONS, ID_DOC_TYPE_OPTIONS, TAX_ENTITY_TYPE_OPTIONS, } from './options';
@@ -119,7 +120,16 @@ export const doctorScreen: ScreenDescriptor<DoctorListItem, DoctorDetail, Doctor
     path: '/doctors/profile',
     titleTh: 'ข้อมูลประวัติแพทย์',
     breadcrumb: [{ label: 'จัดการข้อมูลแพทย์' }],
-    api: createCrudApi<DoctorListItem, DoctorDetail, DoctorInput>('doctors'),
+    api: {
+        resource: 'doctors',
+        list: (params, signal?: AbortSignal) => coreApi<Paged<DoctorListItem>>('/api/master-data/doctors', { params, signal }),
+        get: (id, signal?: AbortSignal) => coreApi<DoctorDetail>(`/api/master-data/doctors/${id}`, { signal }),
+        create: (input) => coreApi<DoctorDetail>('/api/master-data/doctors', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => coreApi<DoctorDetail>(`/api/master-data/doctors/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => coreApi<void>(`/api/master-data/doctors/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => coreApi<AuditEntry[]>(`/api/master-data/doctors/${id}/history`, { signal }),
+        exportXlsx: (params) => coreApiBlob('/api/master-data/doctors/export', { params }),
+    } satisfies CrudApi<DoctorListItem, DoctorDetail, DoctorInput>,
     columns: [
         { key: 'doctorGlobalCode', header: 'รหัสแพทย์กลาง', sortable: true, width: '170px' },
         { key: 'titleName', header: 'คำนำหน้า', width: '120px' },

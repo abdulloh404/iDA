@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
+import { coreApi } from '../../api/client';
 import { Icon } from '../../components/Icon';
 import { ApiErrorAlert } from '../../components/feedback/ApiErrorAlert';
 import { useToast } from '../../components/feedback/toastContext';
@@ -109,13 +109,13 @@ export function RolePermissionPanel({ id, detail }: {
     const [filter, setFilter] = useState('');
     const query = useQuery({
         queryKey: ['master', 'roles', id, 'permissions'],
-        queryFn: ({ signal }) => api<RolePermissions>(`/api/master-data/roles/${id}/permissions`, { signal }),
+        queryFn: ({ signal }) => coreApi<RolePermissions>(`/api/master-data/roles/${id}/permissions`, { signal }),
     });
     const saved = useMemo(() => new Set(query.data?.permissions.filter((p) => p.granted).map((p) => p.code) ?? []), [query.data]);
     const selected = draft ?? saved;
     const groups = useMemo(() => groupPermissions(query.data?.permissions ?? []), [query.data]);
     const save = useMutation({
-        mutationFn: () => api<RolePermissions>(`/api/master-data/roles/${id}/permissions`, {
+        mutationFn: () => coreApi<RolePermissions>(`/api/master-data/roles/${id}/permissions`, {
             method: 'PUT',
             body: { codes: [...selected] },
             params: { rowVersion: detail.rowVersion },

@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../../api/crud';
-import type { RecordStatus } from '../../../api/types';
+import { tenantApi, tenantApiBlob } from '../../../api/client';
+import type { CrudApi } from '../../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../../api/types';
 import { ITEM_DIRECTION_OPTIONS, REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD, omitFields, } from '../descriptor';
 import type { ScreenDescriptor } from '../descriptor';
 export interface ExpenseTypeListItem {
@@ -47,7 +48,16 @@ export const expenseTypeScreen: ScreenDescriptor<ExpenseTypeListItem, ExpenseTyp
     path: '/master-data/tax-402/expense-type',
     titleTh: 'ประเภทรายการค่าใช้จ่าย',
     breadcrumb: [{ label: 'ข้อมูลหลัก' }, { label: 'ข้อมูลหลัก 40(2)' }],
-    api: createCrudApi<ExpenseTypeListItem, ExpenseTypeDetail, ExpenseTypeInput>('expense-types'),
+    api: {
+        resource: 'expense-types',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<ExpenseTypeListItem>>('/api/master-data/expense-types', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<ExpenseTypeDetail>(`/api/master-data/expense-types/${id}`, { signal }),
+        create: (input) => tenantApi<ExpenseTypeDetail>('/api/master-data/expense-types', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<ExpenseTypeDetail>(`/api/master-data/expense-types/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/expense-types/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/expense-types/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/expense-types/export', { params }),
+    } satisfies CrudApi<ExpenseTypeListItem, ExpenseTypeDetail, ExpenseTypeInput>,
     columns: [
         { key: 'code', header: 'รหัสประเภท', sortable: true, width: '160px' },
         { key: 'nameTh', header: 'ประเภทรายการค่าใช้จ่าย', sortable: true },

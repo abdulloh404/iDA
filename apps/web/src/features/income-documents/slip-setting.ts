@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { createCrudApi } from '../../api/crud';
-import type { RecordStatus } from '../../api/types';
+import { tenantApi, tenantApiBlob } from '../../api/client';
+import type { CrudApi } from '../../api/crud';
+import type { AuditEntry, Paged, RecordStatus } from '../../api/types';
 import type { SelectOption } from '../../components/form/Select';
 import { REMARK_FIELD, STATUS_COLUMN, STATUS_FIELD } from '../master-data/descriptor';
 import type { ScreenDescriptor } from '../master-data/descriptor';
@@ -94,7 +95,16 @@ export const slipSettingScreen: ScreenDescriptor<SlipSettingListItem, SlipSettin
     path: '/income-documents/slip-setting',
     titleTh: 'ตั้งค่าการออกสลิป',
     breadcrumb: [{ label: 'เอกสารรายได้' }],
-    api: createCrudApi<SlipSettingListItem, SlipSettingDetail, SlipSettingInput>('slip-settings'),
+    api: {
+        resource: 'slip-settings',
+        list: (params, signal?: AbortSignal) => tenantApi<Paged<SlipSettingListItem>>('/api/master-data/slip-settings', { params, signal }),
+        get: (id, signal?: AbortSignal) => tenantApi<SlipSettingDetail>(`/api/master-data/slip-settings/${id}`, { signal }),
+        create: (input) => tenantApi<SlipSettingDetail>('/api/master-data/slip-settings', { method: 'POST', body: input }),
+        update: (id, input, rowVersion) => tenantApi<SlipSettingDetail>(`/api/master-data/slip-settings/${id}`, { method: 'PUT', body: input, params: { rowVersion } }),
+        remove: (id) => tenantApi<void>(`/api/master-data/slip-settings/${id}`, { method: 'DELETE' }),
+        history: (id, signal?: AbortSignal) => tenantApi<AuditEntry[]>(`/api/master-data/slip-settings/${id}/history`, { signal }),
+        exportXlsx: (params) => tenantApiBlob('/api/master-data/slip-settings/export', { params }),
+    } satisfies CrudApi<SlipSettingListItem, SlipSettingDetail, SlipSettingInput>,
     columns: [
         { key: 'doctorCode', header: 'รหัสแพทย์', sortable: true, width: '130px' },
         { key: 'doctorName', header: 'แพทย์', sortable: true },

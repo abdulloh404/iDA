@@ -1,4 +1,4 @@
-import { api } from '../../api/client';
+import { tenantApi } from '../../api/client';
 import type { SelectOption } from '../../components/form/Select';
 import type { ApprovalAction } from '../master-data/descriptor';
 export type ApprovalStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'RETURNED' | 'REJECTED' | 'CANCELLED';
@@ -14,7 +14,7 @@ export const CYCLE_OPTIONS: readonly SelectOption[] = [
     { value: 'true', label: 'ปิดรอบแล้ว' },
 ];
 export const cycleLabel = (closed: boolean) => (closed ? 'ปิดรอบแล้ว' : 'ยังไม่ปิดรอบ');
-export const decideDoctorFees = (resource: 'external-fees' | 'fee-items') => (ids: readonly string[], action: ApprovalAction, comment: string | null) => api<{
+export const decideDoctorFees = (resource: 'external-fees' | 'fee-items') => (ids: readonly string[], action: ApprovalAction, comment: string | null) => tenantApi<{
     decided: number;
     status: ApprovalStatus;
 }>('/api/doctor-fees/decide', {
