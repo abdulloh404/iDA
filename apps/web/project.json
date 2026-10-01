@@ -13,7 +13,7 @@
       "cache": true,
       "syncGenerators": [],
       "options": {
-        "command": "tsc --noEmit -p tsconfig.json",
+        "command": "npm run typecheck --",
         "cwd": "apps/web"
       }
     },
@@ -21,25 +21,17 @@
       "executor": "nx:run-commands",
       "cache": true,
       "outputs": [
-        "{workspaceRoot}/dist/apps/web"
+        "{projectRoot}/dist"
       ],
       "inputs": [
         "production",
         "^production",
-        {
-          "externalDependencies": [
-            "vite",
-            "typescript",
-            "@vitejs/plugin-react",
-            "@tailwindcss/vite",
-            "tailwindcss",
-            "react",
-            "react-dom"
-          ]
-        }
+        "{workspaceRoot}/tsconfig.base.json",
+        "{workspaceRoot}/tools/start-api.mjs",
+        "{workspaceRoot}/tools/start-web.mjs"
       ],
       "options": {
-        "command": "tsc --noEmit -p tsconfig.json && vite build",
+        "command": "npm run build --",
         "cwd": "apps/web"
       }
     },
@@ -49,7 +41,7 @@
       "continuous": true,
       "syncGenerators": [],
       "options": {
-        "command": "vite",
+        "command": "npm run dev --",
         "cwd": "apps/web"
       }
     },
@@ -61,12 +53,24 @@
         "build"
       ],
       "options": {
-        "command": "node tools/start-web.mjs",
-        "cwd": ".",
+        "command": "npm run start --",
+        "cwd": "apps/web",
         "env": {
           "NODE_ENV": "production",
           "HOSTNAME": "127.0.0.1"
         }
+      }
+    },
+    "preview": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "npm run preview --",
+        "cwd": "apps/web"
       }
     }
   }

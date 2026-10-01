@@ -20,7 +20,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     root: import.meta.dirname,
     envDir: workspaceRoot,
-    cacheDir: '../../node_modules/.vite/apps/web',
+    cacheDir: 'node_modules/.vite',
     plugins: [tailwindcss(), react()],
     resolve: {
       alias: {
@@ -44,7 +44,7 @@ export default defineConfig(({ command, mode }) => {
       strictPort: true,
     },
     build: {
-      outDir: '../../dist/apps/web',
+      outDir: 'dist',
       emptyOutDir: true,
     },
   };

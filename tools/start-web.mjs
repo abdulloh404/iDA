@@ -16,9 +16,9 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 }
 
 const hostname = process.env.HOSTNAME || '127.0.0.1';
-const require = createRequire(import.meta.url);
-const handler = createRequire(require.resolve('serve/package.json'))('serve-handler');
-const webRoot = fileURLToPath(new URL('../dist/apps/web/', import.meta.url));
+const require = createRequire(new URL('../apps/web/package.json', import.meta.url));
+const handler = require('serve-handler');
+const webRoot = fileURLToPath(new URL('../apps/web/dist/', import.meta.url));
 const apiPort = routing.gatewayPort;
 if (!Number.isInteger(apiPort) || apiPort < 1 || apiPort > 65535 || apiPort === port) {
   throw new Error('API_PORT must be a valid port different from WEB_PORT.');
