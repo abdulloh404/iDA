@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import { resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -51,7 +52,7 @@ function port(value, fallback, name) {
   return parsed;
 }
 
-function serviceAddress(value, fallbackPort, name) {
+function serviceAddress(value, fallbackPort, name, gatewayPort) {
   let address;
   try {
     address = new URL(value ?? `http://localhost:${fallbackPort}`);
@@ -60,6 +61,9 @@ function serviceAddress(value, fallbackPort, name) {
   }
   if (address.protocol !== 'http:' || address.username || address.password || address.search || address.hash || address.pathname !== '/') {
     throw new Error(`${name} must be an HTTP origin without a path for the local API runner.`);
+  }
+  if (Number(address.port || 80) === gatewayPort) {
+    address = new URL(`http://localhost:${fallbackPort}`);
   }
   const hostname = address.hostname === '0.0.0.0' ? '127.0.0.1' : address.hostname === '[::]' ? '::1' : address.hostname.replace(/^\[|\]$/g, '');
   return { url: address.origin, port: port(address.port || 80, fallbackPort, name), hostname };
@@ -100,23 +104,24 @@ export function apiTopology(env, settings = new Map()) {
   const routing = apiRouting(env, settings);
   const { gatewayPort } = routing;
   const corePort = port(env.CORE_API_PORT, gatewayPort + 1, 'CORE_API_PORT');
-  const core = { ...routing.core, ...serviceAddress(env.CORE_API_URL ?? settings.get('API:CORE:URL'), corePort, 'Api:Core:Url') };
+  const core = { ...routing.core, ...serviceAddress(env.CORE_API_URL ?? settings.get('API:CORE:URL'), corePort, 'Api:Core:Url', gatewayPort) };
   const tenants = routing.tenants.map((tenant, index) => {
     const tenantPort = port(env[`${tenant.key}_API_PORT`], gatewayPort + index + 2, `${tenant.key}_API_PORT`);
-    return { ...tenant, ...serviceAddress(env[`${tenant.key}_API_URL`] ?? settings.get(`API:TENANTS:${tenant.key}:URL`), tenantPort, `Api:Tenants:${tenant.key}:Url`) };
+    return { ...tenant, ...serviceAddress(env[`${tenant.key}_API_URL`] ?? settings.get(`API:TENANTS:${tenant.key}:URL`), tenantPort, `Api:Tenants:${tenant.key}:Url`, gatewayPort) };
   });
   const ports = [gatewayPort, core.port, ...tenants.map((tenant) => tenant.port)];
   if (new Set(ports).size !== ports.length) throw new Error('Core, Tenant and gateway ports must be unique.');
   return { gatewayPort, core, tenants };
 }
 
-export function proxyApiRequest(request, response, port, hostname = '127.0.0.1') {
+export function proxyApiRequest(request, response, port, hostname = 'localhost', protocol = 'http:') {
   const host = hostname.includes(':') ? `[${hostname}]:${port}` : `${hostname}:${port}`;
   const headers = { ...request.headers, host };
   delete headers['x-ida-service-key'];
   headers['x-forwarded-for'] = request.socket.remoteAddress ?? '127.0.0.1';
   headers['x-forwarded-proto'] = 'http';
-  const upstream = http.request({ hostname, port, method: request.method, path: request.url, headers }, (incoming) => {
+  const transport = protocol === 'https:' ? https : http;
+  const upstream = transport.request({ hostname, port, method: request.method, path: request.url, headers }, (incoming) => {
     response.writeHead(incoming.statusCode ?? 502, incoming.headers);
     incoming.pipe(response);
     incoming.on('error', () => response.destroy());
@@ -259,12 +264,13 @@ async function startApi() {
 
   await new Promise((resolve, reject) => {
     gateway.once('error', reject);
-    gateway.listen(topology.gatewayPort, '127.0.0.1', resolve);
+    gateway.listen(topology.gatewayPort, 'localhost', resolve);
   });
   gateway.on('error', () => stop(1));
-  process.stdout.write(`API gateway (${environment}): http://127.0.0.1:${topology.gatewayPort}\n`);
+  const gatewayUrl = `http://localhost:${topology.gatewayPort}`;
+  process.stdout.write(`API gateway (${environment}): ${gatewayUrl}\n`);
   for (const route of [topology.core, ...topology.tenants]) {
-    process.stdout.write(`  ${route.prefix} -> ${route.url}${route.prefix}\n`);
+    process.stdout.write(`  ${route.prefix}: ${gatewayUrl}${route.prefix}\n`);
   }
 
   function serviceEnvironment(service) {

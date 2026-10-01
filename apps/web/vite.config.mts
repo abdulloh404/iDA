@@ -1,25 +1,23 @@
 import { fileURLToPath } from 'node:url';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { apiProxyPattern, apiRouting, readApiSettings, resolveApiEnvironment } from '../../tools/start-api.mjs';
+import { apiProxyPattern, apiRouting, readApiSettings } from '../../tools/start-api.mjs';
+import { readWebSettings } from '../../tools/start-web.mjs';
 
 export default defineConfig(({ command, mode }) => {
-  const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url));
-  const env = { ...loadEnv(mode, workspaceRoot, ''), ...process.env };
-  const port = Number(env.WEB_PORT ?? '3000');
+  const { env, environment, hostname, port, apiUrl } = readWebSettings(mode === 'production' ? 'Production' : 'Local');
+  const apiEnv = { ...env, DOTNET_ENVIRONMENT: environment, ASPNETCORE_ENVIRONMENT: environment };
   const routing = command === 'serve'
-    ? apiRouting(env, readApiSettings({ ...env, DOTNET_ENVIRONMENT: resolveApiEnvironment(env, mode === 'production' ? 'Production' : 'Local') }))
+    ? apiRouting(apiEnv, readApiSettings(apiEnv))
     : undefined;
-
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error('WEB_PORT must be an integer between 1 and 65535.');
-  }
-  if (routing?.gatewayPort === port) throw new Error('Api:GatewayPort/API_PORT must be different from WEB_PORT.');
+  const proxy = routing ? {
+    [apiProxyPattern(routing)]: { target: apiUrl.origin, changeOrigin: true },
+  } : undefined;
 
   return {
     root: import.meta.dirname,
-    envDir: workspaceRoot,
+    envDir: false,
     cacheDir: 'node_modules/.vite',
     plugins: [tailwindcss(), react()],
     resolve: {
@@ -28,20 +26,16 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     server: {
-      host: 'localhost',
+      host: hostname,
       port,
       strictPort: true,
-      proxy: routing ? {
-        [apiProxyPattern(routing)]: {
-          target: `http://127.0.0.1:${routing.gatewayPort}`,
-          changeOrigin: true,
-        },
-      } : undefined,
+      proxy,
     },
     preview: {
-      host: 'localhost',
+      host: hostname,
       port,
       strictPort: true,
+      proxy,
     },
     build: {
       outDir: 'dist',

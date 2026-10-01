@@ -56,8 +56,7 @@
         "command": "npm run start --",
         "cwd": "apps/web",
         "env": {
-          "NODE_ENV": "production",
-          "HOSTNAME": "127.0.0.1"
+          "NODE_ENV": "production"
         }
       }
     },

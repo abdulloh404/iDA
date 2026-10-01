@@ -1,4 +1,4 @@
-export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+export const API_BASE = (import.meta.env.API_URL ?? '').replace(/\/+$/, '');
 export interface FieldError {
     field: string;
     code: string;
