@@ -29,9 +29,9 @@ public sealed class DatabaseRegistry : IDisposable
         Runtime = runtime;
         if (runtime == DatabaseRuntime.Tenant)
         {
-            var key = configuration["BU_ID"]?.Trim().ToUpperInvariant();
+            var key = (configuration["Api:BuId"] ?? configuration["BU_ID"])?.Trim().ToUpperInvariant();
             if (key is null || !Regex.IsMatch(key, "^BU[0-9]+$"))
-                throw new InvalidOperationException("Set BU_ID to the configured BU connection key, for example BU01.");
+                throw new InvalidOperationException("Set Api:BuId or BU_ID to the configured BU connection key, for example BU01.");
             var branchConnection = configuration[$"{key}_DB_CONNECTION"] ?? configuration.GetConnectionString(key);
             if (string.IsNullOrWhiteSpace(branchConnection)) throw new InvalidOperationException($"Set {key}_DB_CONNECTION.");
             fixedBranch = ReadEndpoint(key, branchConnection, "bu");

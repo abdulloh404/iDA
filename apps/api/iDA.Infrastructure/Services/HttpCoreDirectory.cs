@@ -6,7 +6,7 @@ namespace Ida.Infrastructure.Services;
 
 public sealed class HttpCoreDirectory(ServiceApiClient client, IConfiguration configuration) : ICoreDirectory
 {
-    private string CoreUrl => configuration["CORE_API_URL"] ?? throw new InvalidOperationException("Set CORE_API_URL for the Tenant API.");
+    private string CoreUrl => configuration["Api:Core:Url"] is { Length: > 0 } url ? url : configuration["Api:CoreUrl"] ?? configuration["CORE_API_URL"] ?? throw new InvalidOperationException("Set Api:Core:Url for the Tenant API.");
 
     private Task<T> ReadAsync<T>(string resource, object input, CancellationToken ct) =>
         client.PostAsync<T>(CoreUrl, "api/internal/directory/" + resource, input, ct);

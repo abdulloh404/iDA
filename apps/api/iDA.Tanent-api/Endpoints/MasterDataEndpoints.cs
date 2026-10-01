@@ -10,38 +10,6 @@ namespace Ida.Api.Endpoints;
 
 public static class MasterDataEndpoints
 {
-    public static void MapCoreMasterDataEndpoints(this IEndpointRouteBuilder app)
-    {
-        app.MapCrud<MstSpecialty, SpecialtyListItem, SpecialtyDetail, SpecialtyInput>(
-            Resource("specialties"));
-
-        app.MapCrud<MstSubSpecialty, SubSpecialtyListItem, SubSpecialtyDetail, SubSpecialtyInput>(
-            Resource("sub-specialties"));
-
-        app.MapHospitalEndpoints();
-
-        app.MapCrud<MstTitle, TitleListItem, TitleDetail, TitleInput>(
-            Resource("titles"));
-
-        app.MapCrud<MstBank, BankListItem, BankDetail, BankInput>(
-            Resource("banks"));
-
-        app.MapCrud<MstBankBranch, BankBranchListItem, BankBranchDetail, BankBranchInput>(
-            Resource("bank-branches"));
-
-        app.MapCrud<MstDocumentType, DocumentTypeListItem, DocumentTypeDetail,
-            DocumentTypeInput>(Resource("document-types"));
-
-        app.MapCrud<PitTaxBracket, PitTaxBracketListItem, PitTaxBracketDetail,
-            PitTaxBracketInput>(Resource("pit-tax-brackets"));
-
-        app.MapCrud<TaxAllowanceType, TaxAllowanceTypeListItem, TaxAllowanceTypeDetail,
-            TaxAllowanceTypeInput>(Resource("tax-allowance-types"));
-
-        app.MapCrud<TaxAllowanceItem, TaxAllowanceItemListItem, TaxAllowanceItemDetail,
-            TaxAllowanceItemInput>(Resource("tax-allowance-items"));
-    }
-
     public static void MapTenantMasterDataEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapCrud<MstDepartment, DepartmentListItem, DepartmentDetail, DepartmentInput>(

@@ -1,11 +1,12 @@
 import http from 'node:http';
 
-export function proxyApiRequest(request, response, port) {
-  const headers = { ...request.headers, host: `localhost:${port}` };
+export function proxyApiRequest(request, response, port, hostname = '127.0.0.1') {
+  const host = hostname.includes(':') ? `[${hostname}]:${port}` : `${hostname}:${port}`;
+  const headers = { ...request.headers, host };
   delete headers['x-ida-service-key'];
   headers['x-forwarded-for'] = request.socket.remoteAddress ?? '127.0.0.1';
   headers['x-forwarded-proto'] = 'http';
-  const upstream = http.request({ hostname: '127.0.0.1', port, method: request.method, path: request.url, headers }, (incoming) => {
+  const upstream = http.request({ hostname, port, method: request.method, path: request.url, headers }, (incoming) => {
     response.writeHead(incoming.statusCode ?? 502, incoming.headers);
     incoming.pipe(response);
     incoming.on('error', () => response.destroy());
@@ -39,6 +40,6 @@ export function createApiGateway(topology) {
       response.end(JSON.stringify({ error: { code: 'not_found', message: 'API route not found.' } }));
       return;
     }
-    proxyApiRequest(request, response, route.port);
+    proxyApiRequest(request, response, route.port, route.hostname);
   });
 }

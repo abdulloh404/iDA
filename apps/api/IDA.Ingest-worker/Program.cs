@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Ida.Infrastructure.Configuration;
 using Ida.Infrastructure.Databases;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -12,6 +13,10 @@ System.Globalization.CultureInfo.DefaultThreadCurrentCulture =
     System.Globalization.CultureInfo.InvariantCulture;
 System.Globalization.CultureInfo.DefaultThreadCurrentUICulture =
     System.Globalization.CultureInfo.InvariantCulture;
+var config = new ConfigurationBuilder()
+    .SetBasePath(Directory.GetCurrentDirectory())
+    .AddIdaSettings()
+    .Build();
 var command = args.FirstOrDefault()?.ToLowerInvariant() ?? "preview";
 var options = args.Skip(1).Select(x => x.Split('=', 2))
     .Where(x => x.Length == 2).ToDictionary(x => x[0].TrimStart('-'), x => x[1],
@@ -47,9 +52,9 @@ Fixture[] Fixtures(string hospital) => datasets.Where(x => source == "all" ||
 
 if (command == "preview")
 {
-    var previewBu = Environment.GetEnvironmentVariable("BU_ID")?.Trim().ToUpperInvariant();
+    var previewBu = (config["Api:BuId"] ?? config["BU_ID"])?.Trim().ToUpperInvariant();
     var previewHospital = Option("hospital", string.IsNullOrEmpty(previewBu) ? "PT1" :
-        Environment.GetEnvironmentVariable($"{previewBu}_HOSPITAL_ID") ?? previewBu);
+        config[$"{previewBu}_HOSPITAL_ID"] ?? previewBu);
     var previewFixtures = Fixtures(previewHospital);
     foreach (var item in previewFixtures)
         Console.WriteLine($"{item.Dataset.Code,-28} {item.Payload.Count,2} fields " +
@@ -71,7 +76,6 @@ if (command == "preview")
     return;
 }
 
-var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
 using var registry = new DatabaseRegistry(config, DatabaseRuntime.Tenant);
 var endpoint = registry.FixedBranch;
 if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase) ||

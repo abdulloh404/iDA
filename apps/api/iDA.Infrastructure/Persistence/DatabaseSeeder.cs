@@ -309,7 +309,7 @@ public class DatabaseSeeder(
             if (string.IsNullOrWhiteSpace(password))
             {
                 log.LogWarning(
-                    "No admin user created: set Seed:AdminPassword (appsettings.Local.json " +
+                    "No admin user created: set Seed:AdminPassword (appsettings.local.json " +
                     "or the Seed__AdminPassword environment variable) and run the seeder again.");
                 return;
             }

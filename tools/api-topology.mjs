@@ -6,27 +6,46 @@ function port(value, fallback, name) {
   return parsed;
 }
 
-export function apiTopology(env) {
-  const gatewayPort = port(env.API_PORT, 3100, 'API_PORT');
+function serviceAddress(value, fallbackPort, name) {
+  let address;
+  try {
+    address = new URL(value ?? `http://localhost:${fallbackPort}`);
+  } catch {
+    throw new Error(`${name} must be an absolute HTTP URL.`);
+  }
+  if (address.protocol !== 'http:' || address.username || address.password || address.search || address.hash || address.pathname !== '/') {
+    throw new Error(`${name} must be an HTTP origin without a path for the local API runner.`);
+  }
+  const hostname = address.hostname === '0.0.0.0' ? '127.0.0.1' : address.hostname === '[::]' ? '::1' : address.hostname.replace(/^\[|\]$/g, '');
+  return { url: address.origin, port: port(address.port || 80, fallbackPort, name), hostname };
+}
+
+export function apiTopology(env, settings = new Map()) {
+  const gatewayPort = port(env.API_PORT ?? settings.get('API:GATEWAYPORT'), 3100, 'Api:GatewayPort');
   const corePort = port(env.CORE_API_PORT, gatewayPort + 1, 'CORE_API_PORT');
+  const core = serviceAddress(env.CORE_API_URL ?? settings.get('API:CORE:URL'), corePort, 'Api:Core:Url');
+  core.prefix = env.API_PATH_BASE ?? settings.get('API:CORE:PATHBASE') ?? '/core';
+  if (core.prefix !== '/core') throw new Error('The Core API PathBase must be /core for the current Web routing.');
+  const configuredKeys = [...settings.keys()].filter((key) => /^API:TENANTS:BU[0-9]+:/.test(key)).map((key) => key.split(':')[2]);
+  const connectionKeys = [...settings.keys()].filter((key) => /^CONNECTIONSTRINGS:BU[0-9]+$/.test(key)).map((key) => key.split(':')[1]);
   const keys = env.BU_IDS
     ? env.BU_IDS.split(',').map((key) => key.trim().toUpperCase())
-    : Object.keys(env).filter((key) => /^BU[0-9]+_DB_CONNECTION$/.test(key) && env[key])
-      .map((key) => key.replace(/_DB_CONNECTION$/, '')).sort();
+    : [...new Set(configuredKeys.length ? configuredKeys : [...connectionKeys,
+      ...Object.keys(env).filter((key) => /^BU[0-9]+_DB_CONNECTION$/.test(key) && env[key]).map((key) => key.replace(/_DB_CONNECTION$/, ''))])].sort();
   if (keys.length === 0 || keys.some((key) => !/^BU[0-9]+$/.test(key)) || new Set(keys).size !== keys.length) {
     throw new Error('Configure BU database connections or a unique comma-separated BU_IDS list.');
   }
   const tenants = keys.map((key, index) => {
-    const prefix = env[`${key}_API_PATH`] ?? `/${key.toLowerCase()}`;
+    const prefix = env[`${key}_API_PATH`] ?? settings.get(`API:TENANTS:${key}:PATHBASE`) ?? `/${key.toLowerCase()}`;
     if (!/^\/[a-z0-9][a-z0-9-]*$/.test(prefix) || ['/core', '/api'].includes(prefix)) {
       throw new Error(`${key}_API_PATH must be a tenant prefix such as /pt1.`);
     }
     const tenantPort = port(env[`${key}_API_PORT`], gatewayPort + index + 2, `${key}_API_PORT`);
-    return { key, prefix, port: tenantPort, url: `http://localhost:${tenantPort}` };
+    return { key, prefix, ...serviceAddress(env[`${key}_API_URL`] ?? settings.get(`API:TENANTS:${key}:URL`), tenantPort, `Api:Tenants:${key}:Url`) };
   });
-  const ports = [gatewayPort, corePort, ...tenants.map((tenant) => tenant.port)];
+  const ports = [gatewayPort, core.port, ...tenants.map((tenant) => tenant.port)];
   if (new Set(ports).size !== ports.length || new Set(tenants.map((tenant) => tenant.prefix)).size !== tenants.length) {
     throw new Error('Core, Tenant and gateway ports and API paths must be unique.');
   }
-  return { gatewayPort, core: { prefix: '/core', port: corePort, url: `http://localhost:${corePort}` }, tenants };
+  return { gatewayPort, core, tenants };
 }

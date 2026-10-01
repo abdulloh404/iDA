@@ -10,13 +10,16 @@ public sealed class ServiceApiClient(HttpClient client, IConfiguration configura
     public const string KeyHeader = "X-Ida-Service-Key";
     public const string KeySetting = "IDA_SERVICE_API_KEY";
 
+    public static string? ReadKey(IConfiguration configuration) =>
+        string.IsNullOrWhiteSpace(configuration["Api:ServiceKey"]) ? configuration[KeySetting] : configuration["Api:ServiceKey"];
+
     public async Task<T> PostAsync<T>(string baseUrl, string route, object input, CancellationToken ct)
     {
         if (!Uri.TryCreate(baseUrl.TrimEnd('/') + "/", UriKind.Absolute, out var address)
             || address.Scheme is not ("http" or "https") || address.UserInfo.Length > 0 || address.Query.Length > 0 || address.Fragment.Length > 0)
             throw new InvalidOperationException("An absolute HTTP(S) API URL without credentials, query or fragment is required.");
-        var key = configuration[KeySetting];
-        if (string.IsNullOrWhiteSpace(key) || key.Length < 32) throw new InvalidOperationException($"Set {KeySetting} to the same secret (at least 32 characters) on Core and Tenant APIs.");
+        var key = ReadKey(configuration);
+        if (string.IsNullOrWhiteSpace(key) || key.Length < 32) throw new InvalidOperationException($"Set Api:ServiceKey or {KeySetting} to the same secret (at least 32 characters) on Core and Tenant APIs.");
         using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(address, route));
         request.Headers.Add(KeyHeader, key);
         request.Content = JsonContent.Create(input);

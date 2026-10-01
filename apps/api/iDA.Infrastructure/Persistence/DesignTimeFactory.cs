@@ -1,4 +1,5 @@
 using Ida.Application.Common;
+using Ida.Infrastructure.Configuration;
 using Ida.Infrastructure.Databases;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
@@ -13,9 +14,7 @@ public class IdaDbContextFactory : IDesignTimeDbContextFactory<IdaDbContext>
     {
         var config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", optional: true)
-            .AddJsonFile("appsettings.Local.json", optional: true)
-            .AddEnvironmentVariables()
+            .AddIdaSettings()
             .Build();
 
         using var registry = new DatabaseRegistry(config);

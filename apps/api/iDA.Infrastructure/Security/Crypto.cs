@@ -54,7 +54,7 @@ public class AesSecretProtector : ISecretProtector
         if (string.IsNullOrWhiteSpace(key))
             throw new InvalidOperationException(
                 "Security:DataProtectionKey is not configured. Set a 32-byte base64 key " +
-                "in appsettings.Local.json or the Security__DataProtectionKey environment " +
+                "in appsettings.local.json or the Security__DataProtectionKey environment " +
                 "variable — national ids and bank account numbers cannot be stored without it.");
 
         _key = System.Convert.FromBase64String(key);

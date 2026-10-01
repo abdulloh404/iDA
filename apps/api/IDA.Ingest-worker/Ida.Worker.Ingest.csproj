@@ -13,6 +13,8 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.4" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\appsettings*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="..\appsettings.local.json" CopyToPublishDirectory="Never" />
     <Content Include="Fixtures\source-fields.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Sql\install.sql" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Sql\jobs.sql" CopyToOutputDirectory="PreserveNewest" />

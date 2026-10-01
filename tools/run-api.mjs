@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { apiTopology } from './api-topology.mjs';
+import { readApiSettings, resolveApiEnvironment } from './api-settings.mjs';
 import { createApiGateway } from './api-gateway.mjs';
 
 const mode = process.argv[2];
@@ -12,19 +13,22 @@ if (process.platform === 'win32') {
   throw new Error('The API runner requires POSIX process groups. Use WSL on Windows.');
 }
 
-const topology = apiTopology(process.env);
+const environment = resolveApiEnvironment(process.env, mode === 'start' ? 'Production' : 'Local');
+const runnerEnv = { ...process.env, DOTNET_ENVIRONMENT: environment, ASPNETCORE_ENVIRONMENT: environment };
+const apiSettings = readApiSettings(runnerEnv);
+const topology = apiTopology(runnerEnv, apiSettings);
 const apiUrl = topology.core.url;
-const sharedEnv = { CORE_API_URL: apiUrl };
+const sharedEnv = { Api__Core__Url: apiUrl };
 for (const tenant of topology.tenants) {
-  sharedEnv[`${tenant.key}_API_URL`] = tenant.url;
-  sharedEnv[`${tenant.key}_API_PATH`] = tenant.prefix;
+  sharedEnv[`Api__Tenants__${tenant.key}__Url`] = tenant.url;
+  sharedEnv[`Api__Tenants__${tenant.key}__PathBase`] = tenant.prefix;
 }
 const services = [
   {
     name: 'Core API',
     directory: 'iDA.Core-api/api',
-    env: { ASPNETCORE_URLS: apiUrl, API_PATH_BASE: '/core' },
-    dev: ['watch', '--non-interactive', '--project', 'Ida.Api.csproj', 'run', '--', '--urls', apiUrl],
+    env: { Api__Mode: 'Core', ASPNETCORE_URLS: apiUrl, Api__PathBase: topology.core.prefix },
+    dev: ['watch', '--non-interactive', '--project', 'Ida.Api.csproj', 'run', '--no-launch-profile', '--', '--urls', apiUrl],
     start: ['bin/Release/net9.0/iDA.Core.Api.dll'],
     serve: ['run', '--project', 'Ida.Api.csproj', '--no-launch-profile', '--', '--urls', apiUrl],
   },
@@ -33,8 +37,8 @@ const services = [
       name: `Tenant API ${tenant.key}`,
       directory: 'iDA.Tanent-api',
       bu: tenant.key,
-      env: { BU_ID: tenant.key, ASPNETCORE_URLS: tenant.url, API_PATH_BASE: tenant.prefix },
-      dev: ['watch', '--non-interactive', '--project', 'Ida.Tenant.Api.csproj', 'run', '--', '--urls', tenant.url],
+      env: { Api__Mode: 'Tenant', Api__BuId: tenant.key, BU_ID: tenant.key, ASPNETCORE_URLS: tenant.url, Api__PathBase: tenant.prefix },
+      dev: ['watch', '--non-interactive', '--project', 'Ida.Tenant.Api.csproj', 'run', '--no-launch-profile', '--', '--urls', tenant.url],
       start: ['bin/Release/net9.0/iDA.Tenant.Api.dll'],
       serve: ['run', '--project', 'Ida.Tenant.Api.csproj', '--no-launch-profile', '--', '--urls', tenant.url],
     },
@@ -42,10 +46,10 @@ const services = [
       name: `Ingest ${tenant.key}`,
       directory: 'IDA.Ingest-worker',
       bu: tenant.key,
-      env: { BU_ID: tenant.key },
-      dev: ['watch', '--non-interactive', '--project', 'Ida.Worker.Ingest.csproj', 'run', '--', 'serve'],
+      env: { Api__Mode: 'Tenant', Api__BuId: tenant.key, BU_ID: tenant.key },
+      dev: ['watch', '--non-interactive', '--project', 'Ida.Worker.Ingest.csproj', 'run', '--no-launch-profile', '--', 'serve'],
       start: ['bin/Release/net9.0/Ida.Worker.Ingest.dll', 'serve'],
-      serve: ['run', '--project', 'Ida.Worker.Ingest.csproj', '--', 'serve'],
+      serve: ['run', '--project', 'Ida.Worker.Ingest.csproj', '--no-launch-profile', '--', 'serve'],
     },
   ]),
 ];
@@ -110,7 +114,19 @@ await new Promise((resolve, reject) => {
 gateway.on('error', () => stop(1));
 
 function serviceEnvironment(service) {
-  const env = { ...process.env, ...sharedEnv, ...service.env };
+  const env = { ...runnerEnv };
+  const set = (key, value) => {
+    for (const existing of Object.keys(env)) {
+      if (existing.toUpperCase() === key.toUpperCase()) delete env[existing];
+    }
+    env[key] = value;
+  };
+  for (const [key, value] of apiSettings) {
+    if (/^(?:JWT|SECURITY|CONNECTIONSTRINGS):/.test(key) || /^(?:CORE|BU[0-9]+)_(?:DB_|HOSPITAL_ID)/.test(key) || ['API:SERVICEKEY', 'IDA_SERVICE_API_KEY'].includes(key)) {
+      set(key.replaceAll(':', '__'), value);
+    }
+  }
+  for (const [key, value] of Object.entries({ ...sharedEnv, ...service.env })) set(key, value);
   for (const key of Object.keys(env)) {
     const database = key.match(/^(CORE|BU[0-9]+)_(?:DB_|HOSPITAL_ID)/)?.[1];
     const connection = key.match(/^ConnectionStrings__(Core|Postgres|BU[0-9]+)(Migration)?$/i)?.[1];

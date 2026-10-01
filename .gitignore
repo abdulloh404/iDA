@@ -57,11 +57,14 @@ out
 **/bin/
 **/obj/
 **/appsettings.Local.json
+**/appsettings.local.json
 
 .env
 .env.*
 !.env.example
 **/*.secret.env
+/deployment/production.env
+/deployment/certs/
 
 .nx
 

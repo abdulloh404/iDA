@@ -62,7 +62,7 @@ public class JwtTokenService(IConfiguration config, IClock clock) : ITokenServic
 
         if (string.IsNullOrWhiteSpace(options.Key) || options.Key.Length < 32)
             throw new InvalidOperationException(
-                "Jwt:Key must be at least 32 characters. Set it in appsettings.Local.json " +
+                "Jwt:Key must be at least 32 characters. Set it in appsettings.local.json " +
                 "or the Jwt__Key environment variable; it is deliberately absent from the " +
                 "checked-in appsettings.json.");
 

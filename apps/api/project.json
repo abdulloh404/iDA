@@ -4,7 +4,7 @@
   "root": "apps/api",
   "sourceRoot": "apps/api",
   "implicitDependencies": [
-    "api-presentation"
+    "api-infrastructure"
   ],
   "projectType": "application",
   "tags": [
@@ -37,8 +37,8 @@
         "command": "exec node tools/run-api.mjs dev",
         "cwd": ".",
         "env": {
-          "DOTNET_ENVIRONMENT": "Development",
-          "ASPNETCORE_ENVIRONMENT": "Development"
+          "DOTNET_ENVIRONMENT": "Local",
+          "ASPNETCORE_ENVIRONMENT": "Local"
         }
       }
     },
@@ -51,11 +51,7 @@
       ],
       "options": {
         "command": "exec node tools/run-api.mjs start",
-        "cwd": ".",
-        "env": {
-          "DOTNET_ENVIRONMENT": "Production",
-          "ASPNETCORE_ENVIRONMENT": "Production"
-        }
+        "cwd": "."
       }
     },
     "serve": {
@@ -74,7 +70,7 @@
         "build"
       ],
       "options": {
-        "command": "dotnet bin/Release/net9.0/iDA.Core.Api.dll --migrate-databases",
+        "command": "DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-${ASPNETCORE_ENVIRONMENT:-Local}} dotnet bin/Release/net9.0/iDA.Core.Api.dll --migrate-databases",
         "cwd": "apps/api/iDA.Core-api/api"
       }
     },
@@ -85,7 +81,7 @@
         "build"
       ],
       "options": {
-        "command": "dotnet bin/Release/net9.0/iDA.Core.Api.dll --seed",
+        "command": "DOTNET_ENVIRONMENT=${DOTNET_ENVIRONMENT:-${ASPNETCORE_ENVIRONMENT:-Local}} dotnet bin/Release/net9.0/iDA.Core.Api.dll --seed",
         "cwd": "apps/api/iDA.Core-api/api"
       }
     }
