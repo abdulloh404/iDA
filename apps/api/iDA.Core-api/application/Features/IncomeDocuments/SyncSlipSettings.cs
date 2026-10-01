@@ -12,7 +12,7 @@ public record SyncSlipSettingsResult(int Created, int SkippedNoEmail);
 public class SyncSlipSettingsHandler(
     IRepository<DocSlipSetting> settings,
     IRepository<DoctorCode> codes,
-    IRepository<DoctorContact> contacts,
+    ICoreDirectory core,
     IQueryExecutor exec,
     IUnitOfWork uow)
     : ICommandHandler<SyncSlipSettingsCommand, SyncSlipSettingsResult>
@@ -29,10 +29,7 @@ public class SyncSlipSettingsHandler(
         if (missing.Count == 0) return new SyncSlipSettingsResult(0, 0);
 
         var doctorIds = missing.Select(m => m.DoctorId).Distinct().ToList();
-        var emails = await exec.ToListAsync(contacts.Query()
-            .Where(c => doctorIds.Contains(c.DoctorId) && c.Status == RecordStatus.Active &&
-                        (c.ContactType == "EMAIL" || c.ContactType == "EMAIL_ALT"))
-            .Select(c => new { c.DoctorId, c.ContactType, c.ContactValue, c.IsPrimary }), ct);
+        var emails = await core.DoctorEmailsAsync(doctorIds, ct);
 
         var created = 0;
         var skipped = 0;
@@ -67,4 +64,3 @@ public class SyncSlipSettingsHandler(
         return new SyncSlipSettingsResult(created, skipped);
     }
 }
-

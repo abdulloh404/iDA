@@ -1,4 +1,12 @@
-export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3100';
+export const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/+$/, '');
+const CORE_RESOURCES = new Set([
+    'specialties', 'sub-specialties', 'hospitals', 'titles', 'banks', 'bank-branches', 'document-types',
+    'pit-tax-brackets', 'tax-allowance-types', 'tax-allowance-items', 'doctors', 'doctor-licenses',
+    'doctor-contacts', 'doctor-addresses', 'doctor-educations', 'doctor-trainings', 'doctor-work-histories',
+    'doctor-affiliations', 'doctor-families', 'doctor-professional-records', 'doctor-insurances',
+    'doctor-documents', 'doctor-hospital-links', 'users', 'user-hospital-roles', 'roles', 'email-templates',
+    'password-policies', 'terms',
+]);
 export interface FieldError {
     field: string;
     code: string;
@@ -28,9 +36,11 @@ function readFields(details: unknown): FieldError[] {
     return Array.isArray(fields) ? (fields as FieldError[]) : [];
 }
 let authToken: string | null = null;
+let activeTenantApiPath: string | null = null;
 let onUnauthorizedCallback: (() => void) | null = null;
-export function setAuthToken(token: string | null): void {
+export function setAuthToken(token: string | null, tenantApiPath: string | null = null): void {
     authToken = token;
+    activeTenantApiPath = token ? tenantApiPath : null;
 }
 export function getAuthToken(): string | null {
     return authToken;
@@ -56,12 +66,26 @@ export interface RequestInit_ {
     params?: Record<string, unknown>;
     signal?: AbortSignal;
 }
+function requestPath(path: string): string {
+    const pathname = path.split(/[?#]/, 1)[0];
+    if (pathname === '/hello' || pathname === '/healthz')
+        return `/core${path}`;
+    if (!/^\/api(?:\/|$)/.test(pathname))
+        return path;
+    const resource = /^\/api\/master-data\/([^/]+)/.exec(pathname)?.[1];
+    if (/^\/api\/auth(?:\/|$)/.test(pathname) || (resource && CORE_RESOURCES.has(resource)))
+        return `/core${path}`;
+    if (!activeTenantApiPath)
+        throw new ApiError(401, 'tenant_not_selected', 'กรุณาเลือกโรงพยาบาลก่อนเรียกใช้งานข้อมูล');
+    return `${activeTenantApiPath}${path}`;
+}
 async function request(path: string, init: RequestInit_ = {}): Promise<Response> {
-    const res = await fetch(`${API_BASE}${path}${qs(init.params)}`, {
+    const requestToken = authToken;
+    const res = await fetch(`${API_BASE}${requestPath(path)}${qs(init.params)}`, {
         method: init.method ?? 'GET',
         headers: {
             'Content-Type': 'application/json',
-            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+            ...(requestToken ? { Authorization: `Bearer ${requestToken}` } : {}),
         },
         ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
         ...(init.signal ? { signal: init.signal } : {}),
@@ -82,7 +106,7 @@ async function request(path: string, init: RequestInit_ = {}): Promise<Response>
     }
     catch {
     }
-    if (res.status === 401)
+    if (res.status === 401 && requestToken === authToken)
         onUnauthorizedCallback?.();
     const error = envelope?.error;
     throw new ApiError(res.status, error?.code ?? 'http_error', error?.message ?? `HTTP ${res.status}`, error?.traceId, error?.details);

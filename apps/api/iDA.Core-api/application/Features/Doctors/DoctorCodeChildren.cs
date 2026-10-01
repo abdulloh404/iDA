@@ -49,9 +49,7 @@ public sealed class DoctorBankAccountSpec
         var links = await related.ToListAsync(related.Query<DoctorBankAccount>()
             .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.BankBranchId }), ct);
         var branchIds = links.Select(e => e.BankBranchId).Distinct().ToArray();
-        var branches = await related.ToListAsync(related.Query<Core.MstBankBranch>()
-            .Where(e => branchIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.BranchNameTh, BankName = e.Bank == null ? null : e.Bank.BankNameTh }), ct);
+        var branches = await related.Core.BankBranchesAsync(branchIds, ct);
         var branchById = branches.ToDictionary(e => e.Id);
         var linkById = links.ToDictionary(e => e.Id, e => e.BankBranchId);
         return items.Select(e => linkById.TryGetValue(e.Id, out var branchId) && branchById.TryGetValue(branchId, out var branch)
@@ -183,10 +181,8 @@ public sealed class DoctorSpecialtySpec
             .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.SpecialtyId, e.SubSpecialtyId }), ct);
         var specialtyIds = links.Select(e => e.SpecialtyId).Distinct().ToArray();
         var subSpecialtyIds = links.Where(e => e.SubSpecialtyId != null).Select(e => e.SubSpecialtyId!.Value).Distinct().ToArray();
-        var specialties = await related.ToListAsync(related.Query<Core.MstSpecialty>()
-            .Where(e => specialtyIds.Contains(e.Id)).Select(e => new { e.Id, e.SpecialtyNameTh }), ct);
-        var subSpecialties = await related.ToListAsync(related.Query<Core.MstSubSpecialty>()
-            .Where(e => subSpecialtyIds.Contains(e.Id)).Select(e => new { e.Id, e.SubSpecialtyNameTh }), ct);
+        var specialties = await related.Core.SpecialtiesAsync(specialtyIds, ct);
+        var subSpecialties = await related.Core.SubSpecialtiesAsync(subSpecialtyIds, ct);
         var specialtyNames = specialties.ToDictionary(e => e.Id, e => e.SpecialtyNameTh);
         var subSpecialtyNames = subSpecialties.ToDictionary(e => e.Id, e => e.SubSpecialtyNameTh);
         var linkById = links.ToDictionary(e => e.Id);
@@ -435,8 +431,7 @@ public sealed class BuDoctorDocumentSpec
         var links = await related.ToListAsync(related.Query<BuDoctorDocument>()
             .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.DocTypeId }), ct);
         var docTypeIds = links.Select(e => e.DocTypeId).Distinct().ToArray();
-        var types = await related.ToListAsync(related.Query<Core.MstDocumentType>()
-            .Where(e => docTypeIds.Contains(e.Id)).Select(e => new { e.Id, e.DocTypeNameTh }), ct);
+        var types = await related.Core.DocumentTypesAsync(docTypeIds, ct);
         var names = types.ToDictionary(e => e.Id, e => e.DocTypeNameTh);
         var linkById = links.ToDictionary(e => e.Id, e => e.DocTypeId);
         return items.Select(e => linkById.TryGetValue(e.Id, out var typeId)

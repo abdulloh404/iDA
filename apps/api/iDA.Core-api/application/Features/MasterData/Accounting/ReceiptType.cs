@@ -66,8 +66,7 @@ public sealed class ReceiptTypeSpec
         var links = await related.ToListAsync(related.Query<MstReceiptType>()
             .Where(e => ids.Contains(e.Id)).Select(e => new { e.Id, e.BankId }), ct);
         var bankIds = links.Where(e => e.BankId != null).Select(e => e.BankId!.Value).Distinct().ToArray();
-        var banks = await related.ToListAsync(related.Query<MstBank>()
-            .Where(e => bankIds.Contains(e.Id)).Select(e => new { e.Id, e.Code }), ct);
+        var banks = await related.Core.BanksAsync(bankIds, ct);
         var codes = banks.ToDictionary(e => e.Id, e => e.Code);
         var linkById = links.ToDictionary(e => e.Id, e => e.BankId);
         return items.Select(e => linkById.TryGetValue(e.Id, out var bankId) && bankId is { } id

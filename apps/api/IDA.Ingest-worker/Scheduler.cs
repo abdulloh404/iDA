@@ -10,93 +10,67 @@ internal static class Scheduler
         string Source, string[] DatasetCodes, bool SimulateFailureAfterCapture, int Attempt, int MaxAttempts,
         Guid LeaseToken);
 
-    public static async Task Run(DatabaseRegistry registry, IReadOnlyList<Dataset> catalogue,
-        string hospitalFilter)
+    public static async Task Run(DatabaseRegistry registry, IReadOnlyList<Dataset> catalogue)
     {
+        var endpoint = registry.FixedBranch;
+        var hospital = endpoint.HospitalId;
+        if (string.IsNullOrWhiteSpace(hospital))
+            throw new InvalidOperationException($"Ingest branch {endpoint.ConnectionKey} has no hospital id.");
         using var stop = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
         Console.WriteLine($"Mock ingest scheduler polling DB every 15 seconds " +
-            $"(hospital={hospitalFilter}). Ctrl+C to stop.");
+            $"(hospital={hospital}). Ctrl+C to stop.");
         while (!stop.IsCancellationRequested)
         {
             try
             {
-                var branches = await registry.ListBranchesAsync(stop.Token);
-                var selected = branches.Where(x => hospitalFilter.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.ConnectionKey, hospitalFilter, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(x.HospitalId, hospitalFilter, StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (selected.Length == 0 && !hospitalFilter.Equals("all", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"BU branch not found: {hospitalFilter}.");
-                await Parallel.ForEachAsync(selected, new ParallelOptions
+                await using var db = await registry.OpenAsync(endpoint, stop.Token);
+                var bypassesRls = await Db.Scalar(db, null, """
+                    SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user
+                    """);
+                if (Convert.ToBoolean(bypassesRls))
+                    throw new InvalidOperationException(
+                        "Scheduler connection must not have SUPERUSER or BYPASSRLS.");
+                await Db.Exec(db, null, "SELECT set_config('app.hospital_id',@h,false)",
+                    ("h", hospital));
+                await Db.Exec(db, null, """
+                    INSERT INTO bu.ingest_worker_heartbeat(hospital_id,last_seen_at)
+                    VALUES(@h,now()) ON CONFLICT(hospital_id) DO UPDATE
+                    SET last_seen_at=EXCLUDED.last_seen_at
+                    """, ("h", hospital));
+                try
                 {
-                    MaxDegreeOfParallelism = 4,
-                    CancellationToken = stop.Token
-                }, async (endpoint, cancellationToken) =>
+                    await ProcessManual(db, hospital, catalogue, stop.Token);
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested)
                 {
-                    var hospital = endpoint.HospitalId;
-                    if (string.IsNullOrWhiteSpace(hospital))
-                    {
-                        Console.Error.WriteLine($"Ingest branch {endpoint.ConnectionKey} has no hospital id.");
-                        return;
-                    }
-                    try
-                    {
-                        await using var db = await registry.OpenAsync(endpoint, cancellationToken);
-                        var bypassesRls = await Db.Scalar(db, null, """
-                            SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname=current_user
-                            """);
-                        if (Convert.ToBoolean(bypassesRls))
-                            throw new InvalidOperationException(
-                                "Scheduler connection must not have SUPERUSER or BYPASSRLS.");
-                        await Db.Exec(db, null, "SELECT set_config('app.hospital_id',@h,false)",
-                            ("h", hospital));
-                        await Db.Exec(db, null, """
-                            INSERT INTO bu.ingest_worker_heartbeat(hospital_id,last_seen_at)
-                            VALUES(@h,now()) ON CONFLICT(hospital_id) DO UPDATE
-                            SET last_seen_at=EXCLUDED.last_seen_at
-                            """, ("h", hospital));
-                        try
-                        {
-                            await ProcessManual(db, hospital, catalogue, cancellationToken);
-                        }
-                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                        {
-                            throw;
-                        }
-                        catch (Exception error)
-                        {
-                            Console.Error.WriteLine(
-                                $"Manual ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
-                        }
-                        try
-                        {
-                            var due = await Claim(db, hospital);
-                            if (due is not null)
-                                await Execute(db, due, catalogue);
-                        }
-                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                        {
-                            throw;
-                        }
-                        catch (Exception error)
-                        {
-                            Console.Error.WriteLine(
-                                $"Scheduled ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
-                        }
-                    }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                    {
-                    }
-                    catch (Exception error)
-                    {
-                        Console.Error.WriteLine($"Ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
-                    }
-                });
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    Console.Error.WriteLine(
+                        $"Manual ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
+                }
+                try
+                {
+                    var due = await Claim(db, hospital);
+                    if (due is not null)
+                        await Execute(db, due, catalogue);
+                }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    Console.Error.WriteLine(
+                        $"Scheduled ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
+                }
             }
             catch (OperationCanceledException) when (stop.IsCancellationRequested) { break; }
             catch (Exception error)
             {
-                Console.Error.WriteLine($"Scheduler poll failed: {error.Message}");
+                Console.Error.WriteLine($"Ingest branch {endpoint.ConnectionKey} failed: {error.Message}");
             }
             try { await Task.Delay(PollInterval, stop.Token); }
             catch (OperationCanceledException) { break; }

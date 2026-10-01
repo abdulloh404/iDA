@@ -1,10 +1,11 @@
 {
-  "name": "api-application",
-  "root": "apps/api/iDA.Core-api/application",
-  "sourceRoot": "apps/api/iDA.Core-api/application",
+  "name": "api-presentation",
+  "root": "apps/api/iDA.Presentation",
+  "sourceRoot": "apps/api/iDA.Presentation",
   "projectType": "library",
   "implicitDependencies": [
-    "api-domain"
+    "api-infrastructure",
+    "api-application"
   ],
   "tags": [
     "type:library",
@@ -17,8 +18,8 @@
         "{projectRoot}/bin/Release/net9.0"
       ],
       "options": {
-        "command": "dotnet build Ida.Application.csproj --configuration Release",
-        "cwd": "apps/api/iDA.Core-api/application"
+        "command": "dotnet build Ida.Presentation.csproj --configuration Release",
+        "cwd": "apps/api/iDA.Presentation"
       }
     }
   }

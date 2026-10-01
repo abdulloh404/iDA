@@ -319,10 +319,7 @@ public sealed class TaxDeductionItemSpec
             return await base.ApplySortAsync(query, request, related, ct);
 
         var candidateIds = await related.ToListAsync(query.Select(e => e.TaxAllowanceItemId).Distinct(), ct);
-        var allowances = related.Query<TaxAllowanceItem>().Where(e => candidateIds.Contains(e.Id));
-        var orderedIds = await related.ToListAsync((descending
-            ? allowances.OrderByDescending(e => e.AllowanceName).ThenByDescending(e => e.Id)
-            : allowances.OrderBy(e => e.AllowanceName).ThenBy(e => e.Id)).Select(e => e.Id), ct);
+        var orderedIds = await related.Core.OrderTaxAllowanceIdsAsync(candidateIds.ToArray(), descending, ct);
         var ranks = orderedIds.ToArray();
         return query.OrderBy(e => ranks.Contains(e.TaxAllowanceItemId)
             ? Array.IndexOf(ranks, e.TaxAllowanceItemId)
@@ -371,9 +368,7 @@ public sealed class TaxDeductionItemSpec
         IEnumerable<Guid> allowanceIds, ICrudRelatedData related, CancellationToken ct)
     {
         var ids = allowanceIds.Distinct().ToArray();
-        var allowances = await related.ToListAsync(related.Query<TaxAllowanceItem>()
-            .Where(e => ids.Contains(e.Id))
-            .Select(e => new { e.Id, e.AllowanceName, e.Amount }), ct);
+        var allowances = await related.Core.TaxAllowancesAsync(ids, ct);
         return allowances.ToDictionary(e => e.Id, e => new AllowanceData(e.AllowanceName, e.Amount));
     }
 
@@ -525,8 +520,7 @@ internal static class TaxDoctorData
     {
         if (string.IsNullOrWhiteSpace(request.Q)) return null;
         var text = request.Q.Trim();
-        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => e.TaxId != null && e.TaxId.Contains(text)).Select(e => e.Id), ct);
+        var doctorIds = await related.Core.FindDoctorIdsAsync(new CoreDoctorSearch(text, TaxId: true), ct);
         return [.. await related.ToListAsync(related.Query<DoctorCode>()
             .Where(e => e.Code.Contains(text) || e.DisplayNameTh.Contains(text) || doctorIds.Contains(e.DoctorId))
             .Select(e => e.Id), ct)];
@@ -556,8 +550,7 @@ internal static class TaxDoctorData
             .Where(e => codeIds.Contains(e.Id))
             .Select(e => new { e.Id, e.DoctorId, e.Code, e.DisplayNameTh }), ct);
         var doctorIds = codes.Select(e => e.DoctorId).Distinct().ToArray();
-        var doctors = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => doctorIds.Contains(e.Id)).Select(e => new { e.Id, e.TaxId }), ct);
+        var doctors = await related.Core.DoctorsAsync(doctorIds, ct);
         var taxIds = doctors.ToDictionary(e => e.Id, e => e.TaxId);
         var infoByCode = codes.ToDictionary(e => e.Id,
             e => new TaxDoctorInfo(e.Code, e.DisplayNameTh, taxIds.GetValueOrDefault(e.DoctorId)));

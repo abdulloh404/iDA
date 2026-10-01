@@ -4,7 +4,7 @@ using Ida.Domain.Common;
 
 namespace Ida.Application.Features.Auth;
 
-public record HospitalAccess(string HospitalId, string HospitalName, string RoleCode, string RoleNameTh);
+public record HospitalAccess(string HospitalId, string HospitalName, string RoleCode, string RoleNameTh, string TenantApiPath);
 
 public record SessionUser(
     Guid Id,
@@ -18,6 +18,7 @@ public record SessionDto(
     DateTimeOffset ExpiresAt,
     SessionUser User,
     string HospitalId,
+    string TenantApiPath,
     IReadOnlyList<HospitalAccess> Hospitals,
     IReadOnlyList<string> Roles,
     IReadOnlyList<string> Permissions);
@@ -26,7 +27,8 @@ public class SessionBuilder(
     IRepository<UserHospitalRole> assignments,
     IRepository<RolePermission> rolePermissions,
     IQueryExecutor exec,
-    ITokenService tokens)
+    ITokenService tokens,
+    ITenantApiDirectory tenantApis)
 {
 
     public async Task<SessionDto> BuildAsync(AppUser user, string? preferredHospitalId,
@@ -67,8 +69,11 @@ public class SessionBuilder(
                 .Distinct(),
             ct);
 
-        var hospitals = access
-            .Select(a => new HospitalAccess(a.HospitalId, a.HospitalName, a.RoleCode, a.RoleNameTh))
+        var paths = await tenantApis.PathsAsync(ct);
+        if (!paths.TryGetValue(chosen.HospitalId, out var tenantPath))
+            throw new ApiException(503, "tenant_unavailable", "โรงพยาบาลที่เลือกยังไม่ได้ตั้งค่า Tenant API");
+        var hospitals = access.Where(a => paths.ContainsKey(a.HospitalId))
+            .Select(a => new HospitalAccess(a.HospitalId, a.HospitalName, a.RoleCode, a.RoleNameTh, paths[a.HospitalId]))
             .ToList();
 
         var issued = tokens.Issue(new TokenSubject(
@@ -85,9 +90,9 @@ public class SessionBuilder(
             issued.ExpiresAt,
             new SessionUser(user.Id, user.Username, user.DisplayName, user.Email, user.PhotoUrl),
             chosen.HospitalId,
+            tenantPath,
             hospitals,
             [chosen.RoleCode],
             permissions);
     }
 }
-

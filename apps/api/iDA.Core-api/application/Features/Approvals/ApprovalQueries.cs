@@ -142,9 +142,7 @@ internal static class ApprovalQuery
         if (string.IsNullOrWhiteSpace(request.Q)) return query;
 
         var text = request.Q.Trim();
-        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => e.FirstNameTh.Contains(text) || e.LastNameTh.Contains(text))
-            .Select(e => e.Id), ct);
+        var doctorIds = await related.Core.FindDoctorIdsAsync(new CoreDoctorSearch(text, Name: true), ct);
         return query.Where(e => e.RequestNo.Contains(text) || e.RequestedBy.Contains(text) ||
             (e.DoctorId != null && doctorIds.Contains(e.DoctorId.Value)));
     }
@@ -156,9 +154,7 @@ internal static class ApprovalQuery
             .Distinct().ToArray();
         if (doctorIds.Length == 0) return rows;
 
-        var doctors = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => doctorIds.Contains(e.Id))
-            .Select(e => new { e.Id, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var doctors = await related.Core.DoctorsAsync(doctorIds, ct);
         var names = doctors.ToDictionary(e => e.Id, e => e.Name);
         return rows.Select(e => e.DoctorId is { } id && names.TryGetValue(id, out var name)
             ? e with { DoctorName = name }

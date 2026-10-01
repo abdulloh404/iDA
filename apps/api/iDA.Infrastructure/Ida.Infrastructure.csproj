@@ -5,10 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\ingest-worker\Fixtures\source-fields.json"
+    <Content Include="..\IDA.Ingest-worker\Fixtures\source-fields.json"
              Link="Fixtures\source-fields.json"
              CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\ingest-worker\Sql\*.sql" Link="Sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\IDA.Ingest-worker\Sql\*.sql" Link="Sql\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

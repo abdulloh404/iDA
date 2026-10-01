@@ -3,17 +3,21 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "core-api", "core-api", "{BAD30161-C48F-378D-616A-4F47E3198749}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "iDA.Core-api", "iDA.Core-api", "{BAD30161-C48F-378D-616A-4F47E3198749}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iDA.Core.Api", "core-api\api\Ida.Api.csproj", "{A1ECC57E-C974-4977-BE81-C179DFD3162D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iDA.Core.Api", "iDA.Core-api\api\Ida.Api.csproj", "{A1ECC57E-C974-4977-BE81-C179DFD3162D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Domain", "core-api\domain\Ida.Domain.csproj", "{35F98FEA-37F6-4C9F-9D9A-7B899D909802}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Domain", "iDA.Core-api\domain\Ida.Domain.csproj", "{35F98FEA-37F6-4C9F-9D9A-7B899D909802}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Application", "core-api\application\Ida.Application.csproj", "{45CD652F-0E5C-40C8-91C3-16F905CAAE8B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Application", "iDA.Core-api\application\Ida.Application.csproj", "{45CD652F-0E5C-40C8-91C3-16F905CAAE8B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Infrastructure", "infrastructure\Ida.Infrastructure.csproj", "{BA026D44-9670-4E25-8C05-5C96C633BB58}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Infrastructure", "iDA.Infrastructure\Ida.Infrastructure.csproj", "{BA026D44-9670-4E25-8C05-5C96C633BB58}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Worker.Ingest", "ingest-worker\Ida.Worker.Ingest.csproj", "{0963704C-CB7B-4606-9DC9-8126F1D31192}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Worker.Ingest", "IDA.Ingest-worker\Ida.Worker.Ingest.csproj", "{0963704C-CB7B-4606-9DC9-8126F1D31192}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Presentation", "iDA.Presentation\Ida.Presentation.csproj", "{94805D29-7B3E-43CC-BC01-31663CFCE679}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iDA.Tenant.Api", "iDA.Tanent-api\Ida.Tenant.Api.csproj", "{5927BEA6-4F8C-4F9A-8156-0DECF573B135}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -25,6 +29,30 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|x64.Build.0 = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Debug|x86.Build.0 = Debug|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|x64.ActiveCfg = Release|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|x64.Build.0 = Release|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|x86.ActiveCfg = Release|Any CPU
+		{5927BEA6-4F8C-4F9A-8156-0DECF573B135}.Release|x86.Build.0 = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|x64.Build.0 = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Debug|x86.Build.0 = Debug|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|Any CPU.Build.0 = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|x64.ActiveCfg = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|x64.Build.0 = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|x86.ActiveCfg = Release|Any CPU
+		{94805D29-7B3E-43CC-BC01-31663CFCE679}.Release|x86.Build.0 = Release|Any CPU
 		{35F98FEA-37F6-4C9F-9D9A-7B899D909802}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{35F98FEA-37F6-4C9F-9D9A-7B899D909802}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{35F98FEA-37F6-4C9F-9D9A-7B899D909802}.Debug|x64.ActiveCfg = Debug|Any CPU

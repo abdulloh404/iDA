@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { onUnauthorized, setAuthToken } from '../../api/client';
+import { getAuthToken, onUnauthorized, setAuthToken } from '../../api/client';
 import { login as loginRequest, readStoredSession, refreshSession, switchHospital as switchHospitalRequest, writeStoredSession, } from './session';
 import type { Session } from './session';
 import { AuthContext } from './authState';
@@ -8,7 +8,7 @@ import type { AuthState } from './authState';
 const REFRESH_EVERY_MS = 60000;
 function restoreSession(): Session | null {
     const stored = readStoredSession();
-    setAuthToken(stored?.token ?? null);
+    setAuthToken(stored?.token ?? null, stored?.tenantApiPath ?? null);
     return stored;
 }
 export function AuthProvider({ children, onSessionChange, }: {
@@ -19,42 +19,42 @@ export function AuthProvider({ children, onSessionChange, }: {
     const lastRefresh = useRef(0);
     const apply = useCallback((next: Session | null) => {
         lastRefresh.current = Date.now();
-        setAuthToken(next?.token ?? null);
+        setAuthToken(next?.token ?? null, next?.tenantApiPath ?? null);
         writeStoredSession(next);
         setSession(next);
         onSessionChange?.();
     }, [onSessionChange]);
     useEffect(() => {
-        onUnauthorized(() => {
-            setAuthToken(null);
-            writeStoredSession(null);
-            setSession(null);
-        });
-    }, []);
+        onUnauthorized(() => apply(null));
+    }, [apply]);
     const userId = session?.user.id;
     const hospitalId = session?.hospitalId;
+    const tenantApiPath = session?.tenantApiPath;
     useEffect(() => {
         if (!userId)
             return;
         let cancelled = false;
         const refresh = async () => {
-            if (Date.now() - lastRefresh.current < REFRESH_EVERY_MS)
+            if (tenantApiPath && Date.now() - lastRefresh.current < REFRESH_EVERY_MS)
                 return;
             lastRefresh.current = Date.now();
+            const requestToken = getAuthToken();
             try {
                 const next = await refreshSession();
-                if (cancelled)
+                if (cancelled || requestToken !== getAuthToken())
                     return;
-                if (next.hospitalId !== hospitalId) {
+                if (next.hospitalId !== hospitalId || next.tenantApiPath !== tenantApiPath) {
                     apply(next);
                 }
                 else {
-                    setAuthToken(next.token);
+                    setAuthToken(next.token, next.tenantApiPath);
                     writeStoredSession(next);
                     setSession(next);
                 }
             }
             catch {
+                if (!cancelled && requestToken === getAuthToken() && !tenantApiPath)
+                    apply(null);
             }
         };
         void refresh();
@@ -64,7 +64,7 @@ export function AuthProvider({ children, onSessionChange, }: {
             cancelled = true;
             window.removeEventListener('focus', onFocus);
         };
-    }, [userId, hospitalId, apply]);
+    }, [userId, hospitalId, tenantApiPath, apply]);
     const value = useMemo<AuthState>(() => {
         const granted = new Set(session?.permissions ?? []);
         return {
@@ -75,5 +75,5 @@ export function AuthProvider({ children, onSessionChange, }: {
             can: (permission) => granted.has(permission),
         };
     }, [session, apply]);
-    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+    return <AuthContext.Provider value={value}>{session && !session.tenantApiPath ? null : children}</AuthContext.Provider>;
 }

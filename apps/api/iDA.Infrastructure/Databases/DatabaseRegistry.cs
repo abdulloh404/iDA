@@ -15,15 +15,32 @@ public sealed class DatabaseRegistry : IDisposable
 {
     private readonly IConfiguration configuration;
     private readonly ConcurrentDictionary<string, NpgsqlDataSource> sources = new(StringComparer.Ordinal);
-    public DatabaseEndpoint Core { get; }
+    private readonly DatabaseEndpoint? core;
+    private readonly DatabaseEndpoint? fixedBranch;
+    public DatabaseRuntime Runtime { get; }
+    public string CoreSchemaName => configuration["CORE_DB_SCHEMA"] ?? core?.SchemaName ?? "core";
+    public DatabaseEndpoint Core => core ?? throw new InvalidOperationException("A Tenant runtime cannot access the Core database.");
+    public DatabaseEndpoint FixedBranch => fixedBranch ?? throw new InvalidOperationException("A fixed BU is only available in a Tenant runtime.");
     public NpgsqlDataSource CoreSource => GetSource(Core);
 
-    public DatabaseRegistry(IConfiguration configuration)
+    public DatabaseRegistry(IConfiguration configuration, DatabaseRuntime runtime = DatabaseRuntime.Management)
     {
         this.configuration = configuration;
+        Runtime = runtime;
+        if (runtime == DatabaseRuntime.Tenant)
+        {
+            var key = configuration["BU_ID"]?.Trim().ToUpperInvariant();
+            if (key is null || !Regex.IsMatch(key, "^BU[0-9]+$"))
+                throw new InvalidOperationException("Set BU_ID to the configured BU connection key, for example BU01.");
+            var branchConnection = configuration[$"{key}_DB_CONNECTION"] ?? configuration.GetConnectionString(key);
+            if (string.IsNullOrWhiteSpace(branchConnection)) throw new InvalidOperationException($"Set {key}_DB_CONNECTION.");
+            fixedBranch = ReadEndpoint(key, branchConnection, "bu");
+            if (fixedBranch.SchemaName == CoreSchemaName) throw new InvalidOperationException("The BU schema must differ from the Core schema.");
+            return;
+        }
         var value = configuration["CORE_DB_CONNECTION"] ?? configuration.GetConnectionString("Core") ?? configuration.GetConnectionString("Postgres");
         if (string.IsNullOrWhiteSpace(value)) throw new InvalidOperationException("Set CORE_DB_CONNECTION and CORE_DB_PASSWORD before starting iDA.");
-        Core = ReadEndpoint("CORE", value, "core");
+        core = ReadEndpoint("CORE", value, "core");
     }
 
     public NpgsqlDataSource GetSource(DatabaseEndpoint endpoint)
@@ -34,6 +51,10 @@ public sealed class DatabaseRegistry : IDisposable
 
     public string ConnectionString(DatabaseEndpoint endpoint, bool administrator = false)
     {
+        if (Runtime == DatabaseRuntime.Core && endpoint.Kind != "core")
+            throw new InvalidOperationException("The Core API cannot connect to a BU database. Call its Tenant API instead.");
+        if (Runtime == DatabaseRuntime.Tenant && endpoint != FixedBranch)
+            throw new InvalidOperationException("The Tenant runtime can only connect to its configured BU database.");
         Validate(endpoint);
         var connectionName = endpoint.ConnectionKey + (administrator ? "Migration" : "");
         var explicitValue = configuration.GetConnectionString(connectionName);
@@ -116,6 +137,7 @@ public sealed class DatabaseRegistry : IDisposable
 
     public async Task<IReadOnlyList<DatabaseEndpoint>> InitializeAsync(CancellationToken ct = default)
     {
+        if (Runtime != DatabaseRuntime.Management) throw new InvalidOperationException("Database registry migration requires Management mode.");
         var endpoints = new List<DatabaseEndpoint> { Core };
         var branchKeys = configuration.AsEnumerable()
             .Where(pair => Regex.IsMatch(pair.Key, "^(BU[0-9]+_DB_CONNECTION|ConnectionStrings:BU[0-9]+)$", RegexOptions.IgnoreCase))
@@ -231,6 +253,7 @@ public sealed class DatabaseRegistry : IDisposable
 
     public async Task<IReadOnlyList<DatabaseEndpoint>> ListBranchesAsync(CancellationToken ct = default)
     {
+        if (Runtime == DatabaseRuntime.Tenant) return [FixedBranch];
         await using var connection = await CoreSource.OpenConnectionAsync(ct);
         await using var command = new NpgsqlCommand("SELECT connection_key,kind,hospital_id,host,port,database_name,schema_name,username,password_environment,ssl_mode FROM branch.database_connections WHERE is_active AND kind='bu' ORDER BY connection_key", connection);
         await using var reader = await command.ExecuteReaderAsync(ct);

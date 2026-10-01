@@ -7,11 +7,13 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        var endpoints = await registry.InitializeAsync(ct);
+        await registry.InitializeAsync(ct);
         await ProvisionAsync(registry.Core, ct);
-        foreach (var branch in endpoints.Where(endpoint => endpoint.Kind == "bu"))
+        foreach (var branch in await registry.ListBranchesAsync(ct))
             await ProvisionAsync(branch, ct);
     }
+
+    public Task InitializeTenantAsync(CancellationToken ct = default) => ProvisionAsync(registry.FixedBranch, ct);
 
     private async Task ProvisionAsync(DatabaseEndpoint endpoint, CancellationToken ct)
     {
@@ -20,10 +22,10 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
         await EnsureRuntimeRoleAsync(connection, transaction, endpoint, ct);
         await using var context = DatabaseContexts.CreateSchemaContext(
             endpoint,
-            registry.Core,
+            registry.CoreSchemaName,
             registry.ConnectionString(endpoint, administrator: true));
 
-        await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, registry.Core, ct);
+        await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, registry.CoreSchemaName, ct);
         var ingest = new IngestSchemaProvisioner();
 
         if (string.Equals(endpoint.Kind, "core", StringComparison.OrdinalIgnoreCase))

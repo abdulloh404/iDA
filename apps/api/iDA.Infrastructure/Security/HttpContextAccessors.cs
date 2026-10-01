@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Ida.Application.Common;
+using Ida.Infrastructure.Databases;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.JsonWebTokens;
 
@@ -35,15 +36,17 @@ public class HttpCurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     public bool IsInRole(string role) => Roles.Contains(role);
 }
 
-public class HttpTenantContext(IHttpContextAccessor accessor) : ITenantContext
+public class HttpTenantContext(IHttpContextAccessor accessor, DatabaseRegistry registry) : ITenantContext
 {
     public string HospitalId =>
-        accessor.HttpContext?.User.FindFirstValue(IdaClaims.HospitalId) ?? string.Empty;
+        registry.Runtime == DatabaseRuntime.Tenant ? registry.FixedBranch.HospitalId!
+            : accessor.HttpContext?.User.FindFirstValue(IdaClaims.HospitalId) ?? string.Empty;
 
     public bool HasTenant => !string.IsNullOrEmpty(HospitalId);
 
     public IReadOnlyCollection<string> AllowedHospitals =>
-        accessor.HttpContext?.User.FindAll(IdaClaims.Hospitals).Select(c => c.Value).ToArray() ?? [];
+        registry.Runtime == DatabaseRuntime.Tenant ? [HospitalId]
+            : accessor.HttpContext?.User.FindAll(IdaClaims.Hospitals).Select(c => c.Value).ToArray() ?? [];
 }
 
 public class HttpRequestContext(IHttpContextAccessor accessor) : IRequestContext

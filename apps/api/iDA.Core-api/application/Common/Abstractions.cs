@@ -32,6 +32,8 @@ public interface IQueryExecutor
 
 public interface ICrudRelatedData
 {
+    ICoreDirectory Core { get; }
+
     IQueryable<TEntity> Query<TEntity>() where TEntity : class;
     Task<List<T>> ToListAsync<T>(IQueryable<T> query, CancellationToken ct);
     Task<T?> FirstOrDefaultAsync<T>(IQueryable<T> query, CancellationToken ct);

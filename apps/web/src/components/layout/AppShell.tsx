@@ -96,7 +96,7 @@ export function AppShell() {
           <main className="ida-shell__main" id="main">
             <div className="ida-shell__content">
               
-              <ErrorBoundary resetKey={location.pathname}>
+              <ErrorBoundary key={`${session?.hospitalId}:${session?.tenantApiPath}`} resetKey={location.pathname}>
                 <Outlet />
               </ErrorBoundary>
             </div>

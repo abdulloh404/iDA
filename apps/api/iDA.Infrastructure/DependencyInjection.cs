@@ -7,6 +7,7 @@ using Ida.Infrastructure.Excel;
 using Ida.Infrastructure.Persistence;
 using Ida.Infrastructure.Persistence.Interceptors;
 using Ida.Infrastructure.Security;
+using Ida.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -17,7 +18,7 @@ public static class DependencyInjection
 {
 
     public static IServiceCollection AddInfrastructure(this IServiceCollection services,
-        IConfiguration config)
+        IConfiguration config, DatabaseRuntime runtime = DatabaseRuntime.Core)
     {
         services.AddHttpContextAccessor();
 
@@ -32,7 +33,13 @@ public static class DependencyInjection
         services.AddSingleton<ITenantContext, HttpTenantContext>();
         services.AddSingleton<IRequestContext, HttpRequestContext>();
 
-        services.AddSingleton<DatabaseRegistry>();
+        services.AddSingleton(_ => new DatabaseRegistry(config, runtime));
+        services.AddHttpClient<ServiceApiClient>(client => client.Timeout = TimeSpan.FromSeconds(60))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddSingleton<TenantApiDirectory>();
+        services.AddSingleton<ITenantApiDirectory>(provider => provider.GetRequiredService<TenantApiDirectory>());
+        if (runtime == DatabaseRuntime.Tenant) services.AddScoped<ICoreDirectory, HttpCoreDirectory>();
+        else services.AddScoped<ICoreDirectory, CoreDirectory>();
         services.AddScoped<AuditSaveChangesInterceptor>();
         services.AddScoped<SecretsSaveChangesInterceptor>();
         services.AddScoped<DatabaseContexts>();
@@ -42,15 +49,16 @@ public static class DependencyInjection
         services.AddScoped<ICrudRelatedData, CrudRelatedData>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-        services.AddScoped<IReferenceGuard, ReferenceGuard>();
+        services.AddScoped<ReferenceGuard>();
+        services.AddScoped<IReferenceGuard>(provider => provider.GetRequiredService<ReferenceGuard>());
         services.AddScoped<IUserActivity>(provider =>
             new UserActivity(provider.GetRequiredService<DatabaseContexts>().Core));
         services.AddScoped<IAuditTrail, AuditTrail>();
         services.AddScoped<DatabaseSeeder>();
         services.AddScoped<IIngestConfigurationStore>(provider =>
-            new IngestConfigurationStore(GetRequestSource(provider), provider.GetRequiredService<DatabaseRegistry>()));
+            new IngestConfigurationStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>()));
         services.AddScoped<IIngestMonitoringStore>(provider =>
-            new IngestMonitoringStore(GetRequestSource(provider), provider.GetRequiredService<DatabaseRegistry>()));
+            new IngestMonitoringStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>()));
         services.AddScoped<IMockIngestRunner, MockIngestRunner>();
 
         return services;

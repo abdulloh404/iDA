@@ -47,7 +47,9 @@ Fixture[] Fixtures(string hospital) => datasets.Where(x => source == "all" ||
 
 if (command == "preview")
 {
-    var previewHospital = Option("hospital", Environment.GetEnvironmentVariable("BU_ID") ?? "PT1");
+    var previewBu = Environment.GetEnvironmentVariable("BU_ID")?.Trim().ToUpperInvariant();
+    var previewHospital = Option("hospital", string.IsNullOrEmpty(previewBu) ? "PT1" :
+        Environment.GetEnvironmentVariable($"{previewBu}_HOSPITAL_ID") ?? previewBu);
     var previewFixtures = Fixtures(previewHospital);
     foreach (var item in previewFixtures)
         Console.WriteLine($"{item.Dataset.Code,-28} {item.Payload.Count,2} fields " +
@@ -69,42 +71,32 @@ if (command == "preview")
     return;
 }
 
-var apiConfig = Environment.GetEnvironmentVariable("IDA_API_CONFIG_DIRECTORY")
-    ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "core-api", "api"));
-var configBase = Directory.Exists(apiConfig) ? apiConfig : AppContext.BaseDirectory;
-var config = new ConfigurationBuilder().SetBasePath(configBase)
-    .AddJsonFile("appsettings.json", optional: true)
-    .AddJsonFile("appsettings.Local.json", optional: true)
-    .AddEnvironmentVariables().Build();
-using var registry = new DatabaseRegistry(config);
+var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+using var registry = new DatabaseRegistry(config, DatabaseRuntime.Tenant);
+var endpoint = registry.FixedBranch;
+if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase) ||
+    string.IsNullOrWhiteSpace(endpoint.HospitalId))
+    throw new InvalidOperationException($"Database endpoint {endpoint.ConnectionKey} is not a BU branch.");
+var hospital = endpoint.HospitalId;
+var hospitalSelector = Option("hospital", hospital).Trim();
+if (hospitalSelector.Equals("all", StringComparison.OrdinalIgnoreCase) ||
+    (!string.Equals(hospitalSelector, endpoint.ConnectionKey, StringComparison.OrdinalIgnoreCase) &&
+    !string.Equals(hospitalSelector, hospital, StringComparison.OrdinalIgnoreCase)))
+    throw new InvalidOperationException($"--hospital must match configured BU {endpoint.ConnectionKey} or hospital {hospital}.");
 
 if (command == "install")
 {
-    await new DatabaseProvisioner(registry).InitializeAsync(CancellationToken.None);
-    Console.WriteLine("Core and branch databases initialized from the database registry.");
+    await new DatabaseProvisioner(registry).InitializeTenantAsync(CancellationToken.None);
+    Console.WriteLine($"BU database {endpoint.ConnectionKey} initialized from the database registry.");
     return;
 }
-
-var configuredBranch = config["BU_ID"];
-var hospitalSelector = Option("hospital", configuredBranch ?? (command == "serve" ? "all" : "")).Trim();
-if (hospitalSelector.Length == 0)
-    throw new InvalidOperationException("Set --hospital=<hospital-or-BU-code> or BU_ID.");
 
 if (command == "serve")
 {
-    await Scheduler.Run(registry, datasets, hospitalSelector);
+    await Scheduler.Run(registry, datasets);
     return;
 }
 
-var branches = await registry.ListBranchesAsync();
-var hospitalId = branches.FirstOrDefault(x =>
-    string.Equals(x.ConnectionKey, hospitalSelector, StringComparison.OrdinalIgnoreCase))?.HospitalId
-    ?? hospitalSelector;
-var endpoint = await registry.GetBranchAsync(hospitalId);
-if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase) ||
-    string.IsNullOrWhiteSpace(endpoint.HospitalId))
-    throw new InvalidOperationException($"Database endpoint {hospitalSelector} is not a BU branch.");
-var hospital = endpoint.HospitalId;
 var fixtures = Fixtures(hospital);
 await using var db = await registry.OpenAsync(endpoint);
 

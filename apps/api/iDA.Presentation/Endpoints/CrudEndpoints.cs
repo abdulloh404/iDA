@@ -29,11 +29,11 @@ public static class CrudEndpoints
             .Produces<TDetail>()
             .RequirePermission(resource.Permission("read"));
 
-        group.MapPost("/", async (TInput input, ISender mediator, CancellationToken ct) =>
+        group.MapPost("/", async (HttpRequest http, TInput input, ISender mediator, CancellationToken ct) =>
             {
                 var created = await mediator.Send(
                     new CreateCommand<TEntity, TDetail, TInput>(input), ct);
-                return Results.Created($"/api/master-data/{resource.Name}", created);
+                return Results.Created($"{http.PathBase}/api/master-data/{resource.Name}", created);
             })
             .WithName($"{resource.Name}_create")
             .Produces<TDetail>(StatusCodes.Status201Created)
@@ -98,4 +98,3 @@ public static class CrudEndpoints
             : $"ตัวกรอง: {common}, {string.Join(", ", resource.FilterKeys)}";
     }
 }
-

@@ -146,9 +146,7 @@ public sealed class DoctorWelfareSpec
         IReadOnlyList<DoctorWelfareListItem> items, ICrudRelatedData related, CancellationToken ct)
     {
         var doctorIds = items.Select(e => e.DoctorId).Distinct().ToArray();
-        var doctors = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => doctorIds.Contains(e.Id))
-            .Select(e => new { e.Id, e.DoctorGlobalCode, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var doctors = await related.Core.DoctorsAsync(doctorIds, ct);
         var byId = doctors.ToDictionary(e => e.Id);
         return items.Select(e => byId.TryGetValue(e.DoctorId, out var doctor)
             ? e with { DoctorName = doctor.Name, DoctorGlobalCode = doctor.DoctorGlobalCode }
@@ -191,9 +189,7 @@ public sealed class DoctorWelfareSpec
     {
         if (string.IsNullOrWhiteSpace(request.Q)) return query;
         var text = request.Q.Trim();
-        var doctorIds = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => e.DoctorGlobalCode.Contains(text) || e.FirstNameTh.Contains(text) || e.LastNameTh.Contains(text))
-            .Select(e => e.Id), ct);
+        var doctorIds = await related.Core.FindDoctorIdsAsync(new CoreDoctorSearch(text, Name: true, GlobalCode: true), ct);
         return query.Where(e => doctorIds.Contains(e.DoctorId));
     }
 
@@ -206,10 +202,7 @@ public sealed class DoctorWelfareSpec
             return await base.ApplySortAsync(query, request, related, ct);
 
         var candidateIds = await related.ToListAsync(query.Select(e => e.DoctorId).Distinct(), ct);
-        var doctors = related.Query<Doctor>().Where(e => candidateIds.Contains(e.Id));
-        var orderedIds = await related.ToListAsync((descending
-            ? doctors.OrderByDescending(e => e.DoctorGlobalCode).ThenByDescending(e => e.Id)
-            : doctors.OrderBy(e => e.DoctorGlobalCode).ThenBy(e => e.Id)).Select(e => e.Id), ct);
+        var orderedIds = await related.Core.OrderDoctorIdsAsync(candidateIds.ToArray(), descending, ct);
         var ranks = orderedIds.ToArray();
         return query.OrderBy(e => ranks.Contains(e.DoctorId)
             ? Array.IndexOf(ranks, e.DoctorId)

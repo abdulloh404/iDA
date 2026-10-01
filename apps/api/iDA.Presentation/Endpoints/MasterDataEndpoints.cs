@@ -10,9 +10,8 @@ namespace Ida.Api.Endpoints;
 
 public static class MasterDataEndpoints
 {
-    public static void MapMasterDataEndpoints(this IEndpointRouteBuilder app)
+    public static void MapCoreMasterDataEndpoints(this IEndpointRouteBuilder app)
     {
-
         app.MapCrud<MstSpecialty, SpecialtyListItem, SpecialtyDetail, SpecialtyInput>(
             Resource("specialties"));
 
@@ -21,6 +20,30 @@ public static class MasterDataEndpoints
 
         app.MapHospitalEndpoints();
 
+        app.MapCrud<MstTitle, TitleListItem, TitleDetail, TitleInput>(
+            Resource("titles"));
+
+        app.MapCrud<MstBank, BankListItem, BankDetail, BankInput>(
+            Resource("banks"));
+
+        app.MapCrud<MstBankBranch, BankBranchListItem, BankBranchDetail, BankBranchInput>(
+            Resource("bank-branches"));
+
+        app.MapCrud<MstDocumentType, DocumentTypeListItem, DocumentTypeDetail,
+            DocumentTypeInput>(Resource("document-types"));
+
+        app.MapCrud<PitTaxBracket, PitTaxBracketListItem, PitTaxBracketDetail,
+            PitTaxBracketInput>(Resource("pit-tax-brackets"));
+
+        app.MapCrud<TaxAllowanceType, TaxAllowanceTypeListItem, TaxAllowanceTypeDetail,
+            TaxAllowanceTypeInput>(Resource("tax-allowance-types"));
+
+        app.MapCrud<TaxAllowanceItem, TaxAllowanceItemListItem, TaxAllowanceItemDetail,
+            TaxAllowanceItemInput>(Resource("tax-allowance-items"));
+    }
+
+    public static void MapTenantMasterDataEndpoints(this IEndpointRouteBuilder app)
+    {
         app.MapCrud<MstDepartment, DepartmentListItem, DepartmentDetail, DepartmentInput>(
             Resource("departments"));
 
@@ -41,15 +64,6 @@ public static class MasterDataEndpoints
 
         app.MapCrud<MstPrivilegeSubtype, PrivilegeSubtypeListItem, PrivilegeSubtypeDetail,
             PrivilegeSubtypeInput>(Resource("privilege-subtypes"));
-
-        app.MapCrud<MstTitle, TitleListItem, TitleDetail, TitleInput>(
-            Resource("titles"));
-
-        app.MapCrud<MstBank, BankListItem, BankDetail, BankInput>(
-            Resource("banks"));
-
-        app.MapCrud<MstBankBranch, BankBranchListItem, BankBranchDetail, BankBranchInput>(
-            Resource("bank-branches"));
 
         app.MapCrud<MstIncomeDeductionItem, IncomeDeductionItemListItem,
             IncomeDeductionItemDetail, IncomeDeductionItemInput>(
@@ -82,9 +96,6 @@ public static class MasterDataEndpoints
         app.MapCrud<MstTaxType, MasterListItem, MasterDetail, MasterInput>(
             Resource("tax-types"));
 
-        app.MapCrud<MstDocumentType, DocumentTypeListItem, DocumentTypeDetail,
-            DocumentTypeInput>(Resource("document-types"));
-
         app.MapCrud<MstIncomeType402, IncomeType402ListItem, IncomeType402Detail,
             IncomeType402Input>(Resource("income-types-402"));
 
@@ -94,21 +105,11 @@ public static class MasterDataEndpoints
         app.MapCrud<MstExpenseType, ExpenseTypeListItem, ExpenseTypeDetail, ExpenseTypeInput>(
             Resource("expense-types"));
 
-        app.MapCrud<PitTaxBracket, PitTaxBracketListItem, PitTaxBracketDetail,
-            PitTaxBracketInput>(Resource("pit-tax-brackets"));
-
-        app.MapCrud<TaxAllowanceType, TaxAllowanceTypeListItem, TaxAllowanceTypeDetail,
-            TaxAllowanceTypeInput>(Resource("tax-allowance-types"));
-
-        app.MapCrud<TaxAllowanceItem, TaxAllowanceItemListItem, TaxAllowanceItemDetail,
-            TaxAllowanceItemInput>(Resource("tax-allowance-items"));
-
         app.MapCrud<InvoicePrefixRule, InvoicePrefixRuleListItem, InvoicePrefixRuleDetail,
             InvoicePrefixRuleInput>(Resource("invoice-prefix-rules"));
 
         app.MapCrud<InvoiceArCashRule, InvoiceArCashRuleListItem, InvoiceArCashRuleDetail,
             InvoiceArCashRuleInput>(Resource("invoice-ar-cash-rules"));
-
     }
 
     private static CrudResource Resource(string name) =>

@@ -20,7 +20,7 @@ public sealed class DatabaseContexts(
     private DatabaseEndpoint? _branchEndpoint;
 
     public IdaDbContext Core =>
-        _core ??= CreateRuntimeContext(registry.Core, registry.Core, tenant);
+        _core ??= CreateRuntimeContext(registry.Core, tenant);
 
     public IdaDbContext Branch =>
         _branch ?? throw new InvalidOperationException(
@@ -41,6 +41,13 @@ public sealed class DatabaseContexts(
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
+        if (registry.Runtime == DatabaseRuntime.Core) return;
+        if (registry.Runtime == DatabaseRuntime.Tenant)
+        {
+            _branchEndpoint = registry.FixedBranch;
+            _branch = ForBranch(_branchEndpoint);
+            return;
+        }
         if (!tenant.HasTenant) return;
         var endpoint = await registry.GetBranchAsync(tenant.HospitalId, ct);
         _branchEndpoint = endpoint;
@@ -49,6 +56,8 @@ public sealed class DatabaseContexts(
 
     public IdaDbContext ForBranch(DatabaseEndpoint endpoint)
     {
+        if (registry.Runtime == DatabaseRuntime.Core || registry.Runtime == DatabaseRuntime.Tenant && endpoint != registry.FixedBranch)
+            throw new InvalidOperationException("This runtime cannot open the requested BU database.");
         if (!string.Equals(endpoint.Kind, "bu", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException(
                 $"Database endpoint '{endpoint.ConnectionKey}' is not a BU endpoint.");
@@ -58,7 +67,7 @@ public sealed class DatabaseContexts(
         var contextTenant = new FixedTenant(endpoint.HospitalId
             ?? throw new InvalidOperationException(
                 $"BU database endpoint '{endpoint.ConnectionKey}' has no hospital id."));
-        var context = CreateRuntimeContext(endpoint, registry.Core, contextTenant);
+        var context = CreateRuntimeContext(endpoint, contextTenant);
         _branches.Add(endpoint.ConnectionKey, context);
         return context;
     }
@@ -66,7 +75,9 @@ public sealed class DatabaseContexts(
     public static IdaDbContext CreateSchemaContext(
         DatabaseEndpoint endpoint,
         DatabaseEndpoint core,
-        string connectionString)
+        string connectionString) => CreateSchemaContext(endpoint, core.SchemaName, connectionString);
+
+    public static IdaDbContext CreateSchemaContext(DatabaseEndpoint endpoint, string coreSchemaName, string connectionString)
     {
         var options = new DbContextOptionsBuilder<IdaDbContext>();
         options.UseNpgsql(connectionString, npgsql => npgsql
@@ -76,12 +87,11 @@ public sealed class DatabaseContexts(
         return new IdaDbContext(
             options.Options,
             new FixedTenant(endpoint.HospitalId),
-            DatabaseLayout.For(endpoint, core));
+            DatabaseLayout.For(endpoint, coreSchemaName));
     }
 
     private IdaDbContext CreateRuntimeContext(
         DatabaseEndpoint endpoint,
-        DatabaseEndpoint core,
         ITenantContext contextTenant)
     {
         var options = new DbContextOptionsBuilder<IdaDbContext>();
@@ -99,7 +109,7 @@ public sealed class DatabaseContexts(
         return new IdaDbContext(
             options.Options,
             contextTenant,
-            DatabaseLayout.For(endpoint, core));
+            DatabaseLayout.For(endpoint, registry.CoreSchemaName));
     }
 
     public async ValueTask DisposeAsync()

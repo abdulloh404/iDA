@@ -1,6 +1,7 @@
 import { api } from '../../api/client';
 export interface HospitalAccess {
     hospitalId: string;
+    tenantApiPath: string;
     hospitalName: string;
     roleCode: string;
     roleNameTh: string;
@@ -17,6 +18,7 @@ export interface Session {
     expiresAt: string;
     user: SessionUser;
     hospitalId: string;
+    tenantApiPath: string;
     hospitals: HospitalAccess[];
     roles: string[];
     permissions: string[];

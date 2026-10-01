@@ -31,10 +31,10 @@ public static class HospitalEndpoints
             .Produces<HospitalDetail>()
             .RequirePermission("hospitals.read");
 
-        group.MapPost("/", async (HospitalInput input, ISender mediator, CancellationToken ct) =>
+        group.MapPost("/", async (HttpRequest http, HospitalInput input, ISender mediator, CancellationToken ct) =>
             {
                 var created = await mediator.Send(new CreateHospitalCommand(input), ct);
-                return Results.Created($"/api/master-data/hospitals/{created.Id}", created);
+                return Results.Created($"{http.PathBase}/api/master-data/hospitals/{created.Id}", created);
             })
             .WithName("hospitals_create")
             .Produces<HospitalDetail>(StatusCodes.Status201Created)
@@ -63,4 +63,3 @@ public static class HospitalEndpoints
             .RequirePermission("hospitals.export");
     }
 }
-

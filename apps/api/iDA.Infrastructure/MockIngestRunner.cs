@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRunner
+public sealed class MockIngestRunner(DatabaseRegistry registry, ICoreDirectory core) : IMockIngestRunner
 {
     public async Task<TriggerMockIngestResult> Trigger(string hospital, string actor,
         TriggerMockIngestInput input, CancellationToken ct)
@@ -19,9 +19,8 @@ public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRun
         var codes = input.DatasetCodes ?? [];
         if (input.Source == "custom")
         {
-            await using var core = await registry.CoreSource.OpenConnectionAsync(ct);
-            var knownCount = Convert.ToInt64(await Scalar(core, null,
-                "SELECT count(*) FROM core.ingest_interface_definition WHERE code=ANY(@codes)", ct, ("codes", codes)));
+            var definitions = await core.IngestDefinitionsAsync(ct);
+            var knownCount = definitions.Select(definition => definition.Code).Distinct(StringComparer.Ordinal).LongCount(code => codes.Contains(code, StringComparer.Ordinal));
             if (knownCount != codes.Length)
                 throw ApiException.BadRequest("unknown_dataset_code", "พบโดเมนที่ไม่มีในทะเบียน mock");
         }

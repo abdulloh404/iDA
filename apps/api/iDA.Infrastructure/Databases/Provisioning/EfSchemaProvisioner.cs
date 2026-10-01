@@ -16,7 +16,7 @@ internal static class EfSchemaProvisioner
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         DatabaseEndpoint endpoint,
-        DatabaseEndpoint core,
+        string coreSchemaName,
         CancellationToken ct)
     {
         await ProvisioningSql.ExecuteAsync(connection, transaction,
@@ -40,7 +40,7 @@ internal static class EfSchemaProvisioner
 
         var model = context.GetService<IDesignTimeModel>().Model;
         if (endpoint.Kind == "bu")
-            await LegacyCoreLookupCleanup.ApplyAsync(model, connection, transaction, endpoint, core, ct);
+            await LegacyCoreLookupCleanup.ApplyAsync(model, connection, transaction, endpoint, coreSchemaName, ct);
         await EnsureEnumsAsync(model, connection, transaction, endpoint.SchemaName, ct);
 
         var differ = context.GetService<IMigrationsModelDiffer>();

@@ -10,7 +10,7 @@ namespace Ida.Api.Endpoints;
 
 public static class DoctorEndpoints
 {
-    public static void MapDoctorEndpoints(this IEndpointRouteBuilder app)
+    public static void MapCoreDoctorEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapCrud<Doctor, DoctorListItem, DoctorDetail, DoctorInput>(
             Resource("doctors"));
@@ -51,7 +51,10 @@ public static class DoctorEndpoints
 
         app.MapCrud<DoctorHospitalLink, DoctorHospitalLinkRow, DoctorHospitalLinkDetail,
             DoctorHospitalLinkInput>(Resource("doctor-hospital-links"));
+    }
 
+    public static void MapTenantDoctorEndpoints(this IEndpointRouteBuilder app)
+    {
         app.MapCrud<DoctorCode, DoctorCodeListItem, DoctorCodeDetail, DoctorCodeInput>(
             Resource("doctor-codes"));
 
@@ -114,4 +117,3 @@ public static class DoctorEndpoints
             $"No CrudSpec declares the resource '{name}'. Add one under " +
             $"Ida.Application/Features/Doctors/, or remove the route.");
 }
-

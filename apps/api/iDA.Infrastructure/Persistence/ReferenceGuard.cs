@@ -1,8 +1,10 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using Ida.Application.Common;
 using Ida.Application.Common.Crud;
 using Ida.Infrastructure.Databases;
+using Ida.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 
@@ -10,7 +12,9 @@ namespace Ida.Infrastructure.Persistence;
 
 public class ReferenceGuard(
     DatabaseContexts contexts,
-    DatabaseRegistry registry) : IReferenceGuard
+    DatabaseRegistry registry,
+    TenantApiDirectory apis,
+    ServiceApiClient client) : IReferenceGuard
 {
     private static readonly MethodInfo AnyReference =
         typeof(ReferenceGuard).GetMethod(
@@ -40,20 +44,36 @@ public class ReferenceGuard(
         if (coreReference is not null) return coreReference;
 
         var branches = await registry.ListBranchesAsync(ct);
-        await using var references = DatabaseContexts.CreateSchemaContext(
-            registry.Core with { Kind = "references" }, registry.Core, registry.ConnectionString(registry.Core));
+        var key = contexts.Core.Model.FindEntityType(entityType)?.FindPrimaryKey()?.Properties;
+        if (key is null || key.Count != 1) return null;
+        var keyValue = entityType.GetProperty(key[0].Name)?.GetValue(entity);
+        if (keyValue is null) return null;
+        var input = new CoreReferenceRequest(entityType.Name, JsonSerializer.SerializeToElement(keyValue, key[0].ClrType));
         foreach (var branch in branches)
         {
-            var branchReference = await FindReferenceAsync(
-                contexts.ForBranch(branch),
-                entity,
-                branchReferencesOnly: true,
-                ct,
-                references.Model);
-            if (branchReference is not null) return branchReference;
+            var result = await client.PostAsync<CoreReferenceResult>(apis.Url(branch), "api/internal/references", input, ct);
+            if (result.Reason is not null) return result.Reason;
         }
 
         return null;
+    }
+
+    public async Task<CoreReferenceResult> CheckCoreReferenceAsync(CoreReferenceRequest input, CancellationToken ct)
+    {
+        var branch = registry.FixedBranch;
+        await using var references = DatabaseContexts.CreateSchemaContext(branch with { Kind = "references" }, registry.CoreSchemaName, registry.ConnectionString(branch));
+        var type = references.Model.GetEntityTypes().SingleOrDefault(e => e.ClrType.Name == input.EntityType
+            && e.ClrType.Namespace is "Ida.Domain.Core" or "Ida.Domain.Auth");
+        var key = type?.FindPrimaryKey()?.Properties;
+        if (type is null || key is null || key.Count != 1)
+            throw ApiException.BadRequest("invalid_reference", "ไม่รองรับชนิดข้อมูลอ้างอิงนี้");
+        object? value;
+        try { value = input.Key.Deserialize(key[0].ClrType); }
+        catch (JsonException) { throw ApiException.BadRequest("invalid_reference", "รหัสข้อมูลอ้างอิงไม่ถูกต้อง"); }
+        if (value is null) throw ApiException.BadRequest("invalid_reference", "ต้องระบุรหัสข้อมูลอ้างอิง");
+        var entity = Activator.CreateInstance(type.ClrType)!;
+        type.ClrType.GetProperty(key[0].Name)!.SetValue(entity, value);
+        return new CoreReferenceResult(await FindReferenceAsync(contexts.Branch, entity, true, ct, references.Model));
     }
 
     private async Task<string?> FindReferenceAsync(
@@ -129,3 +149,6 @@ public class ReferenceGuard(
         public readonly T Value = value;
     }
 }
+
+public record CoreReferenceRequest(string EntityType, JsonElement Key);
+public record CoreReferenceResult(string? Reason);

@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class IngestMonitoringStore(NpgsqlDataSource source, DatabaseRegistry registry) : IIngestMonitoringStore
+public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirectory core) : IIngestMonitoringStore
 {
     private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction? tx,
         string sql, params (string Name, object? Value)[] values)
@@ -325,12 +325,9 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, DatabaseRegis
         if (rows.Count == 0) return rows;
 
         var codes = rows.Select(row => row.DatasetCode).Distinct(StringComparer.Ordinal).ToArray();
-        var names = new Dictionary<string, string?>(StringComparer.Ordinal);
-        await using var core = await registry.CoreSource.OpenConnectionAsync(ct);
-        await using (var cmd = Cmd(core, null,
-            "SELECT code,display_name FROM core.ingest_interface_definition WHERE code=ANY(@codes)", ("codes", codes)))
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            while (await reader.ReadAsync(ct)) names.Add(reader.GetString(0), Str(reader, 1));
+        var definitions = await core.IngestDefinitionsAsync(ct);
+        var names = definitions.Where(definition => codes.Contains(definition.Code, StringComparer.Ordinal))
+            .ToDictionary(definition => definition.Code, definition => definition.Name, StringComparer.Ordinal);
         return rows.Select(row => row with { DatasetName = names.GetValueOrDefault(row.DatasetCode) }).ToArray();
     }
 

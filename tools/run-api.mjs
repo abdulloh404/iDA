@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { apiTopology } from './api-topology.mjs';
+import { createApiGateway } from './api-gateway.mjs';
 
 const mode = process.argv[2];
 if (!['dev', 'start', 'serve'].includes(mode)) {
@@ -10,28 +12,45 @@ if (process.platform === 'win32') {
   throw new Error('The API runner requires POSIX process groups. Use WSL on Windows.');
 }
 
-const port = Number(process.env.API_PORT);
-if (!Number.isInteger(port) || port < 1 || port > 65535) {
-  throw new Error('API_PORT must be an integer between 1 and 65535.');
+const topology = apiTopology(process.env);
+const apiUrl = topology.core.url;
+const sharedEnv = { CORE_API_URL: apiUrl };
+for (const tenant of topology.tenants) {
+  sharedEnv[`${tenant.key}_API_URL`] = tenant.url;
+  sharedEnv[`${tenant.key}_API_PATH`] = tenant.prefix;
 }
-const apiUrl = `http://localhost:${port}`;
 const services = [
   {
     name: 'Core API',
-    directory: 'core-api/api',
-    env: { ASPNETCORE_URLS: apiUrl },
+    directory: 'iDA.Core-api/api',
+    env: { ASPNETCORE_URLS: apiUrl, API_PATH_BASE: '/core' },
     dev: ['watch', '--non-interactive', '--project', 'Ida.Api.csproj', 'run', '--', '--urls', apiUrl],
     start: ['bin/Release/net9.0/iDA.Core.Api.dll'],
     serve: ['run', '--project', 'Ida.Api.csproj', '--no-launch-profile', '--', '--urls', apiUrl],
   },
-  {
-    name: 'Ingest worker',
-    directory: 'ingest-worker',
-    dev: ['watch', '--non-interactive', '--project', 'Ida.Worker.Ingest.csproj', 'run', '--', 'serve', '--hospital=all'],
-    start: ['bin/Release/net9.0/Ida.Worker.Ingest.dll', 'serve', '--hospital=all'],
-    serve: ['run', '--project', 'Ida.Worker.Ingest.csproj', '--', 'serve', '--hospital=all'],
-  },
+  ...topology.tenants.flatMap((tenant) => [
+    {
+      name: `Tenant API ${tenant.key}`,
+      directory: 'iDA.Tanent-api',
+      bu: tenant.key,
+      env: { BU_ID: tenant.key, ASPNETCORE_URLS: tenant.url, API_PATH_BASE: tenant.prefix },
+      dev: ['watch', '--non-interactive', '--project', 'Ida.Tenant.Api.csproj', 'run', '--', '--urls', tenant.url],
+      start: ['bin/Release/net9.0/iDA.Tenant.Api.dll'],
+      serve: ['run', '--project', 'Ida.Tenant.Api.csproj', '--no-launch-profile', '--', '--urls', tenant.url],
+    },
+    {
+      name: `Ingest ${tenant.key}`,
+      directory: 'IDA.Ingest-worker',
+      bu: tenant.key,
+      env: { BU_ID: tenant.key },
+      dev: ['watch', '--non-interactive', '--project', 'Ida.Worker.Ingest.csproj', 'run', '--', 'serve'],
+      start: ['bin/Release/net9.0/Ida.Worker.Ingest.dll', 'serve'],
+      serve: ['run', '--project', 'Ida.Worker.Ingest.csproj', '--', 'serve'],
+    },
+  ]),
 ];
+
+const gateway = createApiGateway(topology);
 
 const groups = new Set();
 const children = [];
@@ -66,6 +85,8 @@ function stop(code) {
   if (stopping) return;
   process.exitCode = code;
   stopping = (async () => {
+    gateway.close();
+    gateway.closeAllConnections();
     signalGroups('SIGINT');
     await waitForGroups(3000);
     if (groups.size > 0) {
@@ -82,20 +103,34 @@ for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]
 }
 process.on('exit', () => signalGroups('SIGKILL'));
 
+await new Promise((resolve, reject) => {
+  gateway.once('error', reject);
+  gateway.listen(topology.gatewayPort, '127.0.0.1', resolve);
+});
+gateway.on('error', () => stop(1));
+
+function serviceEnvironment(service) {
+  const env = { ...process.env, ...sharedEnv, ...service.env };
+  for (const key of Object.keys(env)) {
+    const database = key.match(/^(CORE|BU[0-9]+)_(?:DB_|HOSPITAL_ID)/)?.[1];
+    const connection = key.match(/^ConnectionStrings__(Core|Postgres|BU[0-9]+)(Migration)?$/i)?.[1];
+    if (database && database !== (service.bu ?? 'CORE') && key !== 'CORE_DB_SCHEMA') delete env[key];
+    if (connection && (service.bu ? connection.toUpperCase() !== service.bu : /^BU/i.test(connection))) delete env[key];
+    if (/^(?:CORE|BU[0-9]+)_DB_ADMIN_/i.test(key) || /^ConnectionStrings__.+Migration$/i.test(key)) delete env[key];
+  }
+  return env;
+}
+
 for (const service of services) {
   if (stopping) break;
   const args = [...service[mode]];
   if (mode !== 'start') {
-    const artifactsPath = fileURLToPath(new URL(`../.nx/api-run/${mode}/${service.directory}/`, import.meta.url));
+    const artifactsPath = fileURLToPath(new URL(`../.nx/api-run/${mode}/${service.directory}/${service.bu ?? 'CORE'}/`, import.meta.url));
     args.splice(1, 0, '--artifacts-path', artifactsPath);
   }
   const child = spawn('dotnet', [...args, ...process.argv.slice(3)], {
     cwd: fileURLToPath(new URL(`../apps/api/${service.directory}/`, import.meta.url)),
-    env: {
-      ...process.env,
-      ...service.env,
-      IDA_API_CONFIG_DIRECTORY: fileURLToPath(new URL('../apps/api/core-api/api/', import.meta.url)),
-    },
+    env: serviceEnvironment(service),
     stdio: 'inherit',
     detached: true,
   });

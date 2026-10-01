@@ -4,8 +4,7 @@
   "root": "apps/api",
   "sourceRoot": "apps/api",
   "implicitDependencies": [
-    "api-application",
-    "api-infrastructure"
+    "api-presentation"
   ],
   "projectType": "application",
   "tags": [
@@ -21,8 +20,9 @@
         "!{projectRoot}/**/obj/**/*"
       ],
       "outputs": [
-        "{projectRoot}/core-api/api/bin/Release/net9.0",
-        "{projectRoot}/ingest-worker/bin/Release/net9.0"
+        "{projectRoot}/iDA.Core-api/api/bin/Release/net9.0",
+        "{projectRoot}/IDA.Ingest-worker/bin/Release/net9.0",
+        "{projectRoot}/iDA.Tanent-api/bin/Release/net9.0"
       ],
       "options": {
         "command": "dotnet build iDA.sln --configuration Release",
@@ -75,7 +75,7 @@
       ],
       "options": {
         "command": "dotnet bin/Release/net9.0/iDA.Core.Api.dll --migrate-databases",
-        "cwd": "apps/api/core-api/api"
+        "cwd": "apps/api/iDA.Core-api/api"
       }
     },
     "seed": {
@@ -86,18 +86,7 @@
       ],
       "options": {
         "command": "dotnet bin/Release/net9.0/iDA.Core.Api.dll --seed",
-        "cwd": "apps/api/core-api/api"
-      }
-    },
-    "docker-build": {
-      "executor": "nx:run-commands",
-      "options": {
-        "commands": [
-          "docker build -f apps/api/core-api/Dockerfile -t ida/core-api:dev .",
-          "docker build -f apps/api/ingest-worker/Dockerfile -t ida/ingest-worker:dev ."
-        ],
-        "parallel": true,
-        "cwd": "."
+        "cwd": "apps/api/iDA.Core-api/api"
       }
     }
   }

@@ -211,9 +211,7 @@ public sealed class DutyShiftDoctorSpec
         var codes = await related.ToListAsync(related.Query<DoctorCode>()
             .Where(e => codeIds.Contains(e.Id)).Select(e => new { e.Id, e.DoctorId }), ct);
         var doctorIds = codes.Select(e => e.DoctorId).Distinct().ToArray();
-        var doctors = await related.ToListAsync(related.Query<Doctor>()
-            .Where(e => doctorIds.Contains(e.Id))
-            .Select(e => new { e.Id, Name = e.FirstNameTh + " " + e.LastNameTh }), ct);
+        var doctors = await related.Core.DoctorsAsync(doctorIds, ct);
         var names = doctors.ToDictionary(e => e.Id, e => e.Name);
         return codes.Where(e => names.ContainsKey(e.DoctorId)).ToDictionary(e => e.Id, e => names[e.DoctorId]);
     }

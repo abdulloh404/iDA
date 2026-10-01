@@ -15,7 +15,10 @@ public sealed record DatabaseLayout(
         $"{Kind}:{SchemaName}:{CoreSchemaName}:{HospitalId ?? string.Empty}";
 
     public static DatabaseLayout For(DatabaseEndpoint endpoint, DatabaseEndpoint core) =>
-        new(endpoint.Kind, endpoint.SchemaName, core.SchemaName, endpoint.HospitalId);
+        For(endpoint, core.SchemaName);
+
+    public static DatabaseLayout For(DatabaseEndpoint endpoint, string coreSchemaName) =>
+        new(endpoint.Kind, endpoint.SchemaName, coreSchemaName, endpoint.HospitalId);
 
     public static DatabaseLayout Core(string schemaName) =>
         new("core", schemaName, schemaName, null);
