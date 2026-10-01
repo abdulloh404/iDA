@@ -22,7 +22,6 @@
       ],
       "outputs": [
         "{projectRoot}/core-api/api/bin/Release/net9.0",
-        "{projectRoot}/background-worker/bin/Release/net9.0",
         "{projectRoot}/ingest-worker/bin/Release/net9.0"
       ],
       "options": {
@@ -95,7 +94,6 @@
       "options": {
         "commands": [
           "docker build -f apps/api/core-api/Dockerfile -t ida/core-api:dev .",
-          "docker build -f apps/api/background-worker/Dockerfile -t ida/bu-worker:dev .",
           "docker build -f apps/api/ingest-worker/Dockerfile -t ida/ingest-worker:dev ."
         ],
         "parallel": true,

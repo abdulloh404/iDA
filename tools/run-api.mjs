@@ -1,7 +1,6 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { startRabbitMq } from './start-rabbitmq.mjs';
 
 const mode = process.argv[2];
 if (!['dev', 'start', 'serve'].includes(mode)) {
@@ -26,14 +25,6 @@ const services = [
     serve: ['run', '--project', 'Ida.Api.csproj', '--no-launch-profile', '--', '--urls', apiUrl],
   },
   {
-    name: 'BU worker',
-    directory: 'background-worker',
-    env: mode === 'serve' ? {} : { Core__BaseUrl: process.env.Core__BaseUrl || apiUrl },
-    dev: ['watch', '--non-interactive', '--project', 'iDA.Bu.Worker.csproj', 'run', '--', '--no-launch-profile'],
-    start: ['bin/Release/net9.0/iDA.Bu.Worker.dll'],
-    serve: ['run', '--project', 'iDA.Bu.Worker.csproj'],
-  },
-  {
     name: 'Ingest worker',
     directory: 'ingest-worker',
     dev: ['watch', '--non-interactive', '--project', 'Ida.Worker.Ingest.csproj', 'run', '--', 'serve', '--hospital=all'],
@@ -44,7 +35,6 @@ const services = [
 
 const groups = new Set();
 const children = [];
-const startup = new AbortController();
 let stopping;
 let complete;
 const finished = new Promise((resolve) => { complete = resolve; });
@@ -76,7 +66,6 @@ function stop(code) {
   if (stopping) return;
   process.exitCode = code;
   stopping = (async () => {
-    startup.abort();
     signalGroups('SIGINT');
     await waitForGroups(3000);
     if (groups.size > 0) {
@@ -92,15 +81,6 @@ for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]
   process.on(signal, () => stop(code));
 }
 process.on('exit', () => signalGroups('SIGKILL'));
-
-try {
-  await startRabbitMq({ args: process.argv.slice(3), signal: startup.signal });
-} catch (error) {
-  if (!stopping) {
-    process.stderr.write(error.message + '\n');
-    stop(1);
-  }
-}
 
 for (const service of services) {
   if (stopping) break;
