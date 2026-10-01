@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS bu.ingest_job (
     batch_id uuid NOT NULL,
     idempotency_key text NOT NULL,
     business_date date NOT NULL,
-    source_filter text NOT NULL CHECK (source_filter IN ('all','his','oracle')),
+    source_filter text NOT NULL CHECK (source_filter IN ('all','his','oracle','custom')),
+    dataset_codes text[] NOT NULL DEFAULT '{}',
     simulate_failure_after_capture boolean NOT NULL DEFAULT false,
     status text NOT NULL CHECK (status IN ('Pending','Running','Published','Failed')),
     attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS bu.ingest_job (
     UNIQUE(hospital_id,batch_id),
     FOREIGN KEY(hospital_id,batch_id) REFERENCES bu.ingest_batch(hospital_id,id)
 );
+ALTER TABLE bu.ingest_job ADD COLUMN IF NOT EXISTS dataset_codes text[] NOT NULL DEFAULT '{}';
 
 CREATE INDEX IF NOT EXISTS ix_ingest_job_claim
     ON bu.ingest_job(hospital_id,available_at,created_at)

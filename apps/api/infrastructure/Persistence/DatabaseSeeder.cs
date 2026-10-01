@@ -250,7 +250,7 @@ public class DatabaseSeeder(
 
             var isNewRole = role.Permissions.Count == 0;
             var candidates = permissions.Where(p =>
-                Grants(code, p) && (isNewRole || newPermissions.Contains(p.Code)));
+                Grants(code, p) && (isNewRole || newPermissions.Contains(p.Code) || RepairsFeatureGrant(p)));
 
             foreach (var permission in candidates)
             {
@@ -289,6 +289,10 @@ public class DatabaseSeeder(
         "VIEWER" => permission.Action is "read" or "export",
         _ => false,
     };
+
+    private static bool RepairsFeatureGrant(Permission permission) =>
+        permission.Code is "ingest-config.read" or "ingest-config.write"
+            or "ingest.read" or "ingest.raw.read" or "ingest.trigger";
 
     private async Task SeedAdminAsync(CancellationToken ct)
     {

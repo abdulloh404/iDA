@@ -17,6 +17,7 @@ import type { FilterDef } from '../master-data/descriptor';
 import { ingestApi } from './api';
 import type { SourceFilter, TriggerMockIngestInput } from './api';
 import { formatDate, formatDateTime, formatInt, shortId, todayInput } from './format';
+import { IngestPermissionState } from './IngestPermissionState';
 import { useState } from 'react';
 const SOURCE_OPTIONS = [
     { value: 'all', label: 'HIS + Oracle AR' },
@@ -27,12 +28,14 @@ const STATUS_OPTIONS = [
     { value: 'Running', label: 'กำลังทำงาน' },
     { value: 'Published', label: 'สำเร็จ' },
     { value: 'Failed', label: 'ล้มเหลว' },
+    { value: 'Withdrawn', label: 'ถอนแล้ว' },
 ] as const;
 export function IngestBatchListScreen() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { can } = useAuth();
     const canRead = can('ingest.read');
     const canTrigger = can('ingest.trigger');
+    const canUseTrigger = canRead && canTrigger;
     const queryClient = useQueryClient();
     const toast = useToast();
     const navigate = useNavigate();
@@ -123,18 +126,21 @@ export function IngestBatchListScreen() {
         <div className="ida-ingest-trigger__controls">
           <label className="ida-field">
             <span className="ida-label">วันที่ข้อมูล</span>
-            <input className="ida-input" type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} disabled={!canTrigger || trigger.isPending}/>
+            <input className="ida-input" type="date" value={businessDate} onChange={(event) => setBusinessDate(event.target.value)} disabled={!canUseTrigger || trigger.isPending}/>
           </label>
           <label className="ida-field">
             <span className="ida-label">แหล่งข้อมูล</span>
-            <Select value={source} onChange={(value) => setSource(value as SourceFilter)} options={SOURCE_OPTIONS} disabled={!canTrigger || trigger.isPending} ariaLabel="แหล่งข้อมูล mock"/>
+            <Select value={source} onChange={(value) => setSource(value as SourceFilter)} options={SOURCE_OPTIONS} disabled={!canUseTrigger || trigger.isPending} ariaLabel="แหล่งข้อมูล mock"/>
           </label>
-          <button type="button" className="ida-btn ida-btn--primary" disabled={!canTrigger || trigger.isPending || businessDate === ''} onClick={() => setPendingTrigger(buildTrigger())}>
+          <button type="button" className="ida-btn ida-btn--primary" disabled={!canUseTrigger || trigger.isPending || businessDate === ''} onClick={() => setPendingTrigger(buildTrigger())}>
             <Icon name="refresh" size={18}/>
             นำเข้าข้อมูลจำลองตอนนี้
           </button>
         </div>
         {!canTrigger && (<p className="ida-field-hint">บัญชีนี้ไม่มีสิทธิ์สั่งนำเข้าข้อมูลจำลอง</p>)}
+        {canTrigger && !canRead && (<p className="ida-field-hint">
+            ต้องมีสิทธิ์ดูประวัติการนำเข้าก่อน จึงจะเปิด batch และตรวจผลต่อได้
+          </p>)}
         {trigger.error && <ApiErrorAlert error={trigger.error}/>}
       </section>
 
@@ -233,7 +239,7 @@ export function IngestBatchListScreen() {
                 hint: 'เมื่อมีการนำเข้า mock หรือรอบอัตโนมัติ รายการจะแสดงที่นี่',
             }} rowActions={[
                 { icon: 'eye', label: 'ดูรายละเอียด batch', to: (row) => `/ingest/batches/${row.id}` },
-            ]}/>) : (<PermissionState />)}
+            ]}/>) : (<IngestPermissionState />)}
 
         {canRead && (<Pagination page={data?.batches} onPageChange={(page) => patchParams({ page })} onPageSizeChange={(pageSize) => patchParams({ pageSize })}/>)}
       </div>
@@ -245,19 +251,6 @@ export function IngestBatchListScreen() {
         </p>
       </ConfirmDialog>
     </>);
-}
-function PermissionState() {
-    return (<div className="ida-table-wrap">
-      <div className="ida-empty">
-        <div className="ida-empty__icon">
-          <Icon name="shield" size={28}/>
-        </div>
-        <p className="ida-empty__title">บัญชีนี้ยังไม่มีสิทธิ์ดูประวัติการนำเข้า</p>
-        <p className="ida-empty__hint">
-          ต้องมีสิทธิ์ ingest.read จึงจะดู batch/run และผลตรวจสอบย้อนหลังได้
-        </p>
-      </div>
-    </div>);
 }
 type MetricTone = 'accent' | 'danger' | 'info' | 'pending' | 'primary' | 'success' | 'warning';
 function Metric({ label, value, icon, tone, }: {

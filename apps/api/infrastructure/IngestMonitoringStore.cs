@@ -141,6 +141,12 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, DatabaseRegis
         var run = runs.SingleOrDefault()
             ?? throw ApiException.NotFound("run_not_found", "ไม่พบรอบนำเข้านี้");
 
+        var stagingCount = Convert.ToInt32(await Scalar(db, tx, """
+            SELECT count(*)
+            FROM bu.ingest_staging_record
+            WHERE hospital_id=@hospital AND run_id=@run
+            """, [("hospital", hospital), ("run", runId)], ct));
+
         var staging = new List<IngestStagingItem>();
         await using (var cmd = Cmd(db, tx, """
             SELECT id,page_number,item_index,dataset_code,source_key_candidate,
@@ -220,7 +226,7 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, DatabaseRegis
                     reader.GetDecimal(4), reader.GetDecimal(5), reader.GetString(6));
 
         await tx.CommitAsync(ct);
-        return new IngestRunDetail(run, staging, issues, events, rawPages, actions,
+        return new IngestRunDetail(run, staging, stagingCount, issues, events, rawPages, actions,
             reconciliation);
     }
 

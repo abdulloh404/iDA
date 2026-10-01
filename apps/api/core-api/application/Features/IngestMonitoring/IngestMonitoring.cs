@@ -132,6 +132,7 @@ public record IngestControlActionItem(
 public record IngestRunDetail(
     IngestRunListItem Run,
     IReadOnlyList<IngestStagingItem> StagingItems,
+    int StagingItemCount,
     IReadOnlyList<IngestIssueItem> Issues,
     IReadOnlyList<IngestRunEventItem> Events,
     IReadOnlyList<IngestRawPageItem> RawPages,
@@ -151,7 +152,8 @@ public record TriggerMockIngestInput(
     DateOnly BusinessDate,
     string Source,
     string IdempotencyKey,
-    bool SimulateFailureAfterCapture = false);
+    bool SimulateFailureAfterCapture = false,
+    string[]? DatasetCodes = null);
 
 public record TriggerMockIngestResult(
     Guid BatchId,
@@ -213,15 +215,24 @@ public class IngestMonitoringHandlers(IIngestMonitoringStore store, IMockIngestR
     {
         var input = request.Input;
         var source = input.Source.Trim().ToLowerInvariant();
-        if (source is not ("all" or "his" or "oracle"))
-            throw ApiException.BadRequest("invalid_source", "เลือกแหล่งข้อมูล mock เป็น all, his หรือ oracle เท่านั้น");
+        if (source == "custom" && !user.IsInRole("GROUP_ADMIN") && !user.IsInRole("HOSPITAL_ADMIN"))
+            throw ApiException.Forbidden(message: "การเลือกโดเมนเพื่อนำเข้าทันทีสำหรับผู้ดูแลระบบเท่านั้น");
+        if (source is not ("all" or "his" or "oracle" or "custom"))
+            throw ApiException.BadRequest("invalid_source", "เลือกแหล่งข้อมูล mock เป็น all, his, oracle หรือ custom เท่านั้น");
+        var codes = input.DatasetCodes?.Select(code => code?.Trim() ?? "").ToArray() ?? [];
+        if (source == "custom" && (codes.Length == 0 || codes.Any(string.IsNullOrWhiteSpace) ||
+            codes.Length != codes.Distinct(StringComparer.Ordinal).Count()))
+            throw ApiException.BadRequest("invalid_dataset_codes", "เลือกโดเมนอย่างน้อยหนึ่งรายการและห้ามซ้ำ");
+        if (source != "custom" && codes.Length > 0)
+            throw ApiException.BadRequest("invalid_dataset_codes", "ระบุ datasetCodes ได้เฉพาะ source=custom");
         if (string.IsNullOrWhiteSpace(input.IdempotencyKey) ||
             input.IdempotencyKey.Trim().Length is < 8 or > 120)
             throw ApiException.BadRequest("invalid_idempotency_key", "ต้องส่ง idempotency key ยาว 8-120 ตัวอักษร");
         return runner.Trigger(tenant.HospitalId, user.UserName, input with
         {
             Source = source,
-            IdempotencyKey = input.IdempotencyKey.Trim()
+            IdempotencyKey = input.IdempotencyKey.Trim(),
+            DatasetCodes = codes.Order(StringComparer.Ordinal).ToArray()
         }, ct);
     }
 }

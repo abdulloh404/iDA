@@ -7,7 +7,7 @@ internal static class Scheduler
     private sealed record Due(Guid Id, Guid ScheduleId, DateTime ScheduledFor,
         string Hospital, string[] DatasetCodes);
     private sealed record ManualJob(Guid Id, Guid BatchId, DateOnly BusinessDate,
-        string Source, bool SimulateFailureAfterCapture, int Attempt, int MaxAttempts,
+        string Source, string[] DatasetCodes, bool SimulateFailureAfterCapture, int Attempt, int MaxAttempts,
         Guid LeaseToken);
 
     public static async Task Run(DatabaseRegistry registry, IReadOnlyList<Dataset> catalogue,
@@ -111,15 +111,22 @@ internal static class Scheduler
         if (job is null) return;
         try
         {
-            var fixtures = catalogue.Where(x => job.Source == "all" ||
-                    (job.Source == "his"
-                        ? x.Code.StartsWith("his_", StringComparison.Ordinal)
-                        : x.Code == "oracle_ar"))
+            IEnumerable<Dataset> selected = job.Source switch
+            {
+                "all" => catalogue,
+                "his" => catalogue.Where(x => x.Code.StartsWith("his_", StringComparison.Ordinal)),
+                "oracle" => catalogue.Where(x => x.Code == "oracle_ar"),
+                "custom" => catalogue.Where(x => job.DatasetCodes.Contains(x.Code, StringComparer.Ordinal)),
+                _ => throw new InvalidOperationException($"Unknown ingest source: {job.Source}.")
+            };
+            var fixtures = selected
                 .Select(x => MockFixture.Create(x, hospital, job.BusinessDate, 1, 1))
                 .ToArray();
             if (fixtures.Length == 0)
                 throw new InvalidOperationException(
                     $"No ingest fixtures found for source {job.Source}.");
+            if (job.Source == "custom" && fixtures.Length != job.DatasetCodes.Length)
+                throw new InvalidOperationException("Custom ingest selection contains unknown or duplicate dataset codes.");
             var anyChanged = false;
             foreach (var fixture in fixtures)
             {
@@ -167,7 +174,7 @@ internal static class Scheduler
                 leased_until=now()+interval '10 minutes',
                 started_at=COALESCE(j.started_at,now()),error_message=NULL
             FROM candidate c WHERE j.id=c.id AND j.hospital_id=@h
-            RETURNING j.id,j.batch_id,j.business_date,j.source_filter,
+            RETURNING j.id,j.batch_id,j.business_date,j.source_filter,j.dataset_codes,
                 j.simulate_failure_after_capture,j.attempts,j.max_attempts
             """, ("h", hospital), ("lease", leaseToken));
         await using var reader = await cmd.ExecuteReaderAsync();
@@ -179,7 +186,8 @@ internal static class Scheduler
         }
         var job = new ManualJob(reader.GetGuid(0), reader.GetGuid(1),
             DateOnly.FromDateTime(reader.GetDateTime(2)), reader.GetString(3),
-            reader.GetBoolean(4), reader.GetInt32(5), reader.GetInt32(6), leaseToken);
+            reader.GetFieldValue<string[]>(4), reader.GetBoolean(5), reader.GetInt32(6),
+            reader.GetInt32(7), leaseToken);
         await reader.DisposeAsync();
         await tx.CommitAsync();
         return job;

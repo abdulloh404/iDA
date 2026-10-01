@@ -4,6 +4,7 @@ export interface IngestInterface {
     name: string;
     sourceSystem: string;
     endpointUrl: string | null;
+    dataCategory: 'Master' | 'Transaction' | 'Unclassified';
 }
 export interface IngestSchedule {
     id: string;

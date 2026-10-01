@@ -5,18 +5,24 @@ import { StatusBadge } from '../../components/data/StatusBadge';
 import { ApiErrorAlert } from '../../components/feedback/ApiErrorAlert';
 import { Icon } from '../../components/Icon';
 import { PageHeader } from '../../components/layout/PageHeader';
+import { useAuth } from '../auth/authState';
 import { ingestApi } from './api';
 import { formatDate, formatDateTime, formatInt, shortId } from './format';
+import { IngestPermissionState } from './IngestPermissionState';
 export function IngestBatchDetailScreen() {
     const { batchId } = useParams<{
         batchId: string;
     }>();
+    const { can } = useAuth();
+    const canRead = can('ingest.read');
     const batch = useQuery({
         queryKey: ['ingest', 'batch', batchId],
         queryFn: ({ signal }) => ingestApi.getBatch(batchId!, signal),
-        enabled: !!batchId,
-        refetchInterval: (query) => query.state.data?.batch.status === 'Running' ? 3000 : false,
+        enabled: !!batchId && canRead,
+        refetchInterval: (query) => query.state.data?.batch.status === 'Running' || query.state.data?.runs.some((run) => run.status === 'Running') ? 3000 : false,
     });
+    if (!canRead)
+        return <IngestPermissionState detail/>;
     if (batch.isPending) {
         return <span className="ida-skeleton" style={{ height: '320px', display: 'block' }}/>;
     }
@@ -41,6 +47,8 @@ export function IngestBatchDetailScreen() {
           <Detail label="จบ" value={formatDateTime(data.batch.finishedAt)}/>
           <Detail label="ผู้สั่ง" value={data.batch.triggeredBy ?? data.batch.triggerKind ?? '—'}/>
           <Detail label="Dataset-run" value={formatInt(data.batch.datasetRunCount)}/>
+          <Detail label="Run ล้มเหลว" value={formatInt(data.batch.failedRunCount)}/>
+          <Detail label="Run ถอนแล้ว" value={formatInt(data.batch.withdrawnRunCount)}/>
           <Detail label="รับเข้า" value={formatInt(data.batch.receivedCount)}/>
           <Detail label="เปลี่ยน" value={formatInt(data.batch.changedCount)}/>
           <Detail label="ซ้ำ" value={formatInt(data.batch.duplicateCount)}/>

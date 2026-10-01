@@ -3,7 +3,7 @@ using Ida.Application.Common;
 namespace Ida.Application.Features.IngestConfiguration;
 
 public record InterfaceDto(string Code, string Name, string SourceSystem,
-    string? EndpointUrl);
+    string? EndpointUrl, string DataCategory);
 public record ScheduleDto(Guid Id, string Name, int IntervalValue, string IntervalUnit,
     DateTime NextRunAt, bool Enabled, int Revision, string[] DatasetCodes,
     string? LastStatus, DateTime? LastStartedAt, DateTime? CancelledAt);

@@ -16,16 +16,25 @@ public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRun
         await CheckRuntimeRole(db, ct);
         await Exec(db, null, "SELECT set_config('app.hospital_id',@hospital,false)", ct,
             ("hospital", hospital));
+        var codes = input.DatasetCodes ?? [];
+        if (input.Source == "custom")
+        {
+            await using var core = await registry.CoreSource.OpenConnectionAsync(ct);
+            var knownCount = Convert.ToInt64(await Scalar(core, null,
+                "SELECT count(*) FROM core.ingest_interface_definition WHERE code=ANY(@codes)", ct, ("codes", codes)));
+            if (knownCount != codes.Length)
+                throw ApiException.BadRequest("unknown_dataset_code", "พบโดเมนที่ไม่มีในทะเบียน mock");
+        }
         await using var tx = await db.BeginTransactionAsync(ct);
         try
         {
             await using var insert = Command(db, tx, """
                 INSERT INTO bu.ingest_manual_request(hospital_id,idempotency_key,requested_by,
-                    business_date,source_filter,status)
-                VALUES(@hospital,@key,@actor,@day,@source,'Running')
+                    business_date,source_filter,dataset_codes,status)
+                VALUES(@hospital,@key,@actor,@day,@source,@codes,'Running')
                 ON CONFLICT DO NOTHING
                 """, ("hospital", hospital), ("key", input.IdempotencyKey), ("actor", actor),
-                ("day", input.BusinessDate), ("source", input.Source));
+                ("day", input.BusinessDate), ("source", input.Source), ("codes", codes));
             if (await insert.ExecuteNonQueryAsync(ct) == 1)
             {
                 var batchId = Guid.CreateVersion7();
@@ -37,11 +46,11 @@ public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRun
                     ("day", input.BusinessDate), ("source", input.Source), ("actor", actor));
                 await Exec(db, tx, """
                     INSERT INTO bu.ingest_job(id,hospital_id,batch_id,idempotency_key,business_date,
-                        source_filter,simulate_failure_after_capture,status)
-                    VALUES(@id,@hospital,@batch,@key,@day,@source,@simulate,'Pending')
+                        source_filter,dataset_codes,simulate_failure_after_capture,status)
+                    VALUES(@id,@hospital,@batch,@key,@day,@source,@codes,@simulate,'Pending')
                     """, ct, ("id", Guid.CreateVersion7()), ("hospital", hospital),
                     ("batch", batchId), ("key", input.IdempotencyKey),
-                    ("day", input.BusinessDate), ("source", input.Source),
+                    ("day", input.BusinessDate), ("source", input.Source), ("codes", codes),
                     ("simulate", input.SimulateFailureAfterCapture));
                 await Exec(db, tx, """
                     UPDATE bu.ingest_manual_request SET batch_id=@batch
@@ -54,7 +63,7 @@ public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRun
             }
 
             await using var existing = Command(db, tx, """
-                SELECT batch_id,status,business_date,source_filter,error_message
+                SELECT batch_id,status,business_date,source_filter,error_message,dataset_codes
                 FROM bu.ingest_manual_request
                 WHERE hospital_id=@hospital AND idempotency_key=@key
                 FOR UPDATE
@@ -66,6 +75,9 @@ public sealed class MockIngestRunner(DatabaseRegistry registry) : IMockIngestRun
             if (reader.IsDBNull(0))
                 throw ApiException.Conflict("request_running",
                     "คำสั่งนำเข้าด้วย idempotency key นี้กำลังทำงานอยู่");
+            if (DateOnly.FromDateTime(reader.GetDateTime(2)) != input.BusinessDate ||
+                reader.GetString(3) != input.Source || !reader.GetFieldValue<string[]>(5).SequenceEqual(codes))
+                throw ApiException.Conflict("idempotency_mismatch", "idempotency key นี้ใช้กับคำสั่งนำเข้าอื่นแล้ว");
             var result = new TriggerMockIngestResult(reader.GetGuid(0), reader.GetString(1),
                 DateOnly.FromDateTime(reader.GetDateTime(2)), reader.GetString(3), true,
                 reader.IsDBNull(4) ? null : reader.GetString(4));

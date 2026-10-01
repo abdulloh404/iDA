@@ -1,7 +1,7 @@
 import { api } from '../../api/client';
 import type { ListParams, Paged } from '../../api/types';
 export type IngestStatus = 'Running' | 'Published' | 'Failed' | 'Withdrawn';
-export type SourceFilter = 'all' | 'his' | 'oracle';
+export type SourceFilter = 'all' | 'his' | 'oracle' | 'custom';
 export interface IngestBatchSummary {
     batchCount: number;
     datasetRunCount: number;
@@ -132,6 +132,7 @@ export interface IngestControlActionItem {
 export interface IngestRunDetail {
     run: IngestRunListItem;
     stagingItems: IngestStagingItem[];
+    stagingItemCount: number;
     issues: IngestIssueItem[];
     events: IngestRunEventItem[];
     rawPages: IngestRawPageItem[];
@@ -152,6 +153,7 @@ export interface TriggerMockIngestInput {
     source: SourceFilter;
     idempotencyKey: string;
     simulateFailureAfterCapture?: boolean;
+    datasetCodes?: string[];
 }
 export interface TriggerMockIngestResult {
     batchId: string;

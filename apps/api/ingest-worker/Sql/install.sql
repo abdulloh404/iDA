@@ -16,6 +16,23 @@ CREATE TABLE IF NOT EXISTS core.ingest_interface_definition (
     fields jsonb NOT NULL
 );
 ALTER TABLE core.ingest_interface_definition ADD COLUMN IF NOT EXISTS display_name text;
+ALTER TABLE core.ingest_interface_definition ADD COLUMN IF NOT EXISTS data_category text NOT NULL DEFAULT 'Unclassified';
+UPDATE core.ingest_interface_definition SET data_category='Master'
+WHERE code IN ('his_clinic','his_treatment_category','his_treatment','his_specialty',
+    'his_sub_specialty','his_examination_schedule','his_refrain_schedule','his_department')
+    AND data_category='Unclassified';
+UPDATE core.ingest_interface_definition SET data_category='Transaction'
+WHERE code IN ('his_invoice','his_xray','his_none_df','his_accrual_no_invoice','oracle_ar')
+    AND data_category='Unclassified';
+DO $data_category_constraint$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint
+        WHERE conrelid='core.ingest_interface_definition'::regclass
+            AND conname='ck_ingest_interface_data_category') THEN
+        ALTER TABLE core.ingest_interface_definition ADD CONSTRAINT ck_ingest_interface_data_category
+            CHECK (data_category IN ('Master','Transaction','Unclassified'));
+    END IF;
+END $data_category_constraint$;
 
 CREATE TABLE IF NOT EXISTS bu.ingest_interface_config (
     hospital_id varchar(20) NOT NULL REFERENCES core.hospital(id),
@@ -172,7 +189,8 @@ CREATE TABLE IF NOT EXISTS bu.ingest_manual_request (
     requested_at timestamptz NOT NULL DEFAULT now(),
     finished_at timestamptz,
     business_date date NOT NULL,
-    source_filter text NOT NULL CHECK (source_filter IN ('all','his','oracle')),
+    source_filter text NOT NULL CHECK (source_filter IN ('all','his','oracle','custom')),
+    dataset_codes text[] NOT NULL DEFAULT '{}',
     status text NOT NULL CHECK (status IN ('Running','Published','Failed')),
     error_message text,
     PRIMARY KEY(hospital_id,idempotency_key),
@@ -180,6 +198,7 @@ CREATE TABLE IF NOT EXISTS bu.ingest_manual_request (
 );
 CREATE INDEX IF NOT EXISTS ix_ingest_manual_request_batch
     ON bu.ingest_manual_request(hospital_id,batch_id);
+ALTER TABLE bu.ingest_manual_request ADD COLUMN IF NOT EXISTS dataset_codes text[] NOT NULL DEFAULT '{}';
 
 CREATE TABLE IF NOT EXISTS bu.ingest_run (
     id uuid PRIMARY KEY,

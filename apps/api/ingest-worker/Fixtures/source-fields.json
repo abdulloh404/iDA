@@ -2,6 +2,7 @@
   {
     "name": "HIS Invoice",
     "code": "his_invoice",
+    "dataCategory": "Transaction",
     "fields": [
       "INVOICE_NO",
       "INVOICE_DATE",
@@ -161,6 +162,7 @@
   {
     "name": "HIS Xray",
     "code": "his_xray",
+    "dataCategory": "Transaction",
     "fields": [
       "INVOICE_NO",
       "INVOICE_DATE",
@@ -199,6 +201,7 @@
   {
     "name": "HIS Examination Schedule",
     "code": "his_examination_schedule",
+    "dataCategory": "Master",
     "fields": [
       "DOCTOR_CODE",
       "DAY_OF_WEEK",
@@ -245,6 +248,7 @@
   {
     "name": "HIS Refrain Examination Schedule",
     "code": "his_refrain_schedule",
+    "dataCategory": "Master",
     "fields": [
       "DOCTOR_CODE",
       "START_HOLIDAY",
@@ -277,6 +281,7 @@
   {
     "name": "HIS Clinic",
     "code": "his_clinic",
+    "dataCategory": "Master",
     "fields": [
       "CLINIC_CODE",
       "CLINIC_NAME_ENG",
@@ -302,6 +307,7 @@
   {
     "name": "HIS Treatment Category",
     "code": "his_treatment_category",
+    "dataCategory": "Master",
     "fields": [
       "TREATMENT_CATEGORY_CODE",
       "DESCRIPTION_ENG",
@@ -320,6 +326,7 @@
   {
     "name": "HIS Treatment",
     "code": "his_treatment",
+    "dataCategory": "Master",
     "fields": [
       "TREATMENT_CODE",
       "TREATMENT_CATEGORY_CODE",
@@ -372,6 +379,7 @@
   {
     "name": "HIS Specialty",
     "code": "his_specialty",
+    "dataCategory": "Master",
     "fields": [
       "SPECIALTY_CODE",
       "SPECIALTY_NAME_ENG",
@@ -390,6 +398,7 @@
   {
     "name": "HIS Sub Specialty",
     "code": "his_sub_specialty",
+    "dataCategory": "Master",
     "fields": [
       "SPECIALTY_CODE",
       "SUB_SPECIALTY_CODE",
@@ -410,6 +419,7 @@
   {
     "name": "HIS None DF",
     "code": "his_none_df",
+    "dataCategory": "Transaction",
     "fields": [
       "HN",
       "HN_NAME",
@@ -440,6 +450,7 @@
   {
     "name": "HIS Accrual No Invoice",
     "code": "his_accrual_no_invoice",
+    "dataCategory": "Transaction",
     "fields": [
       "HOSPITAL_CODE",
       "HOSPITAL_NO",
@@ -512,6 +523,7 @@
   {
     "name": "HIS Department",
     "code": "his_department",
+    "dataCategory": "Master",
     "fields": [
       "department_based_expense_income_center_code",
       "department_based_expense_income_center_th",
@@ -530,6 +542,7 @@
   {
     "name": "Oracle AR / ERP",
     "code": "oracle_ar",
+    "dataCategory": "Transaction",
     "fields": [
       "HOSPITALCODE",
       "RECEIPTNO",

@@ -76,6 +76,7 @@ internal sealed class IngestSchemaProvisioner
         jobs = RewriteSchemas(jobs, connection, branch.SchemaName);
         EnsureAdditive(jobs);
         await ProvisioningSql.ExecuteAsync(connection, transaction, jobs, ct);
+        await UpgradeSourceFiltersAsync(connection, transaction, branch.SchemaName, ct);
         await InstallProjectionColumnsAsync(connection, transaction, ct);
         await ProvisioningSql.ExecuteAsync(connection, transaction,
             $"GRANT SELECT, INSERT, UPDATE ON {ProvisioningSql.Identifier(branch.SchemaName)}.ingest_job TO {ProvisioningSql.Identifier(branch.Username)};",
@@ -136,6 +137,41 @@ internal sealed class IngestSchemaProvisioner
             throw new InvalidDataException("Database provisioning SQL contains a destructive operation.");
     }
 
+    private static Task UpgradeSourceFiltersAsync(
+        NpgsqlConnection connection,
+        NpgsqlTransaction transaction,
+        string schema,
+        CancellationToken ct) =>
+        ProvisioningSql.ExecuteAsync(connection, transaction, $"""
+            DO $source_filter_upgrade$
+            DECLARE
+                table_name text;
+                constraint_name text;
+                definition text;
+            BEGIN
+                FOREACH table_name IN ARRAY ARRAY['ingest_batch','ingest_manual_request','ingest_job'] LOOP
+                    constraint_name := table_name || '_source_filter_check';
+                    EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', {ProvisioningSql.Literal(schema)}, table_name);
+                    SELECT pg_get_constraintdef(x.oid) INTO definition
+                    FROM pg_constraint x
+                    JOIN pg_class c ON c.oid=x.conrelid
+                    JOIN pg_namespace n ON n.oid=c.relnamespace
+                    WHERE n.nspname={ProvisioningSql.Literal(schema)} AND c.relname=table_name
+                        AND x.conname=constraint_name;
+                    IF definition = $old$CHECK ((source_filter = ANY (ARRAY['all'::text, 'his'::text, 'oracle'::text])))$old$ THEN
+                        EXECUTE format('ALTER TABLE %I.%I DROP CONSTRAINT %I', {ProvisioningSql.Literal(schema)}, table_name, constraint_name);
+                    ELSIF definition IS NOT NULL THEN
+                        IF definition <> $current$CHECK ((source_filter = ANY (ARRAY['all'::text, 'his'::text, 'oracle'::text, 'custom'::text])))$current$ THEN
+                            RAISE EXCEPTION 'Unexpected source filter constraint %.%', table_name, constraint_name;
+                        END IF;
+                        CONTINUE;
+                    END IF;
+                    EXECUTE format('ALTER TABLE %I.%I ADD CONSTRAINT %I CHECK (source_filter IN (''all'',''his'',''oracle'',''custom''))',
+                        {ProvisioningSql.Literal(schema)}, table_name, constraint_name);
+                END LOOP;
+            END $source_filter_upgrade$;
+            """, ct);
+
     private async Task SeedDefinitionsAsync(
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
@@ -151,14 +187,18 @@ internal sealed class IngestSchemaProvisioner
                 ? source.GetString()
                 : code == "oracle_ar" ? "Oracle AR" : "HIS";
             var version = code == "oracle_ar" ? "G5-v1.0-MOCK" : "CustomerPostmanExample-2026-09-24+G5-v1.4-MOCK";
+            var category = item.TryGetProperty("dataCategory", out var dataCategory)
+                ? dataCategory.GetString() ?? "Unclassified"
+                : "Unclassified";
             var sql = DatabaseSql.Rewrite("""
-                INSERT INTO core.ingest_interface_definition(id,code,source_system,legacy_contract_version,fields,display_name)
-                VALUES($1,$2,$3,$4,$5::jsonb,$6)
+                INSERT INTO core.ingest_interface_definition(id,code,source_system,legacy_contract_version,fields,display_name,data_category)
+                VALUES($1,$2,$3,$4,$5::jsonb,$6,$7)
                 ON CONFLICT(code) DO UPDATE SET
                     source_system=EXCLUDED.source_system,
                     legacy_contract_version=EXCLUDED.legacy_contract_version,
                     fields=EXCLUDED.fields,
-                    display_name=EXCLUDED.display_name
+                    display_name=EXCLUDED.display_name,
+                    data_category=EXCLUDED.data_category
                 """, connection);
             await using var command = new NpgsqlCommand(sql, connection, transaction);
             command.Parameters.AddWithValue(Guid.CreateVersion7());
@@ -167,6 +207,7 @@ internal sealed class IngestSchemaProvisioner
             command.Parameters.AddWithValue(version);
             command.Parameters.AddWithValue(NpgsqlDbType.Jsonb, item.GetProperty("fields").GetRawText());
             command.Parameters.AddWithValue(name);
+            command.Parameters.AddWithValue(category);
             await command.ExecuteNonQueryAsync(ct);
         }
         await ProvisioningSql.ExecuteAsync(connection, transaction,

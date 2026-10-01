@@ -8,24 +8,28 @@ import { PageHeader } from '../../components/layout/PageHeader';
 import { useAuth } from '../auth/authState';
 import { ingestApi } from './api';
 import { formatDate, formatDateTime, formatInt, prettyJson, shortId } from './format';
+import { IngestPermissionState } from './IngestPermissionState';
 import { useState } from 'react';
 export function IngestRunDetailScreen() {
     const { runId } = useParams<{
         runId: string;
     }>();
     const { can } = useAuth();
+    const canRead = can('ingest.read');
     const [rawPage, setRawPage] = useState<number | null>(null);
     const run = useQuery({
         queryKey: ['ingest', 'run', runId],
         queryFn: ({ signal }) => ingestApi.getRun(runId!, signal),
-        enabled: !!runId,
+        enabled: !!runId && canRead,
         refetchInterval: (query) => query.state.data?.run.status === 'Running' ? 3000 : false,
     });
     const raw = useQuery({
         queryKey: ['ingest', 'run', runId, 'raw', rawPage],
         queryFn: ({ signal }) => ingestApi.getRawPage(runId!, rawPage!, signal),
-        enabled: !!runId && rawPage !== null && can('ingest.raw.read'),
+        enabled: !!runId && rawPage !== null && canRead && can('ingest.raw.read'),
     });
+    if (!canRead)
+        return <IngestPermissionState detail/>;
     if (run.isPending) {
         return <span className="ida-skeleton" style={{ height: '320px', display: 'block' }}/>;
     }
@@ -83,6 +87,13 @@ export function IngestRunDetailScreen() {
       </section>
 
       <div className="ida-table-card">
+        {data.stagingItemCount > data.stagingItems.length && (<div className="ida-alert ida-alert--info">
+            <Icon name="info" size={20}/>
+            <div>
+              แสดงรายการ staging {formatInt(data.stagingItems.length)} รายการแรก จากทั้งหมด{' '}
+              {formatInt(data.stagingItemCount)} รายการ
+            </div>
+          </div>)}
         <DataTable caption="รายการ staging" columns={[
             { key: 'pageNumber', header: 'Page', align: 'right', width: '80px' },
             { key: 'itemIndex', header: 'Index', align: 'right', width: '80px' },
@@ -139,6 +150,29 @@ export function IngestRunDetailScreen() {
       </div>
 
       <div className="ida-table-card">
+        <DataTable caption="ประวัติการควบคุม" columns={[
+            {
+                key: 'action',
+                header: 'คำสั่ง',
+                width: '130px',
+                value: (row) => actionLabel(row.action),
+            },
+            { key: 'actor', header: 'ผู้ดำเนินการ', width: '160px' },
+            { key: 'reason', header: 'เหตุผล' },
+            {
+                key: 'actedAt',
+                header: 'เวลา',
+                width: '150px',
+                render: (row) => formatDateTime(row.actedAt),
+            },
+        ]} rows={data.controlActions} rowKey={(row) => row.id} empty={{
+            icon: 'undo',
+            title: 'ยังไม่มีคำสั่งควบคุม',
+            hint: 'เมื่อมีการถอนผลหรือคำสั่งควบคุมอื่น ระบบจะแสดง audit trail ที่นี่',
+        }}/>
+      </div>
+
+      <div className="ida-table-card">
         <DataTable caption="Raw page" columns={[
             { key: 'pageNumber', header: 'Page', align: 'right', width: '80px' },
             {
@@ -152,6 +186,12 @@ export function IngestRunDetailScreen() {
                 header: 'Raw body',
                 width: '110px',
                 value: (row) => (row.rawAvailable ? 'มี raw' : 'ไม่มี raw'),
+            },
+            {
+                key: 'payloadAvailable',
+                header: 'Payload',
+                width: '110px',
+                value: (row) => (row.payloadAvailable ? 'มี payload' : 'ไม่มี payload'),
             },
             { key: 'rawSha256', header: 'SHA-256' },
         ]} rows={data.rawPages} rowKey={(row) => String(row.pageNumber)} empty={{
@@ -199,4 +239,7 @@ function Detail({ label, value }: {
 }
 function money(value: number): string {
     return value.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function actionLabel(action: string): string {
+    return action === 'Withdraw' ? 'ถอนผล' : action;
 }

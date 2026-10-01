@@ -31,20 +31,34 @@ function when(value: string, locale: Locale): string {
         timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short',
     });
 }
-function toLocalInput(iso: string | null | undefined): string {
+function toBangkokInput(iso: string | null | undefined): string {
     if (!iso)
         return '';
     const value = new Date(iso);
     if (Number.isNaN(value.getTime()))
         return '';
-    return new Date(value.getTime() - value.getTimezoneOffset() * 60000)
+    return new Date(value.getTime() + 7 * 3600000)
         .toISOString().slice(0, 16);
+}
+function fromBangkokInput(value: string): string | null {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+    if (!match)
+        return null;
+    const [, year, month, day, hour, minute] = match.map(Number);
+    const utc = new Date(Date.UTC(year, month - 1, day, hour, minute));
+    if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 ||
+        utc.getUTCDate() !== day || utc.getUTCHours() !== hour || utc.getUTCMinutes() !== minute)
+        return null;
+    return new Date(utc.getTime() - 7 * 3600000).toISOString();
 }
 function rows<T>(value: T[] | null | undefined): T[] {
     return Array.isArray(value) ? value : [];
 }
 function datasetCodes(row: IngestSchedule): string[] {
     return rows(row.datasetCodes);
+}
+function isHisInterface(row: { sourceSystem?: string | null }): boolean {
+    return (row.sourceSystem ?? '').trim().toUpperCase() === 'HIS';
 }
 function unitLabel(value: IngestSchedule['intervalUnit'] | string, t: Translate, count?: number): string {
     switch (value) {
@@ -54,65 +68,72 @@ function unitLabel(value: IngestSchedule['intervalUnit'] | string, t: Translate,
         default: return value || '—';
     }
 }
-function toEnglishDateTime(iso: string | null | undefined): string {
-    if (!iso)
+function toDisplayDateTime(iso: string | null | undefined, locale: Locale): string {
+    const bangkok = toBangkokInput(iso);
+    if (!bangkok)
         return '';
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime()))
-        return '';
+    const [date, time] = bangkok.split('T');
+    const [year, month, day] = date.split('-').map(Number);
     const two = (value: number) => String(value).padStart(2, '0');
-    return `${two(date.getDate())}/${two(date.getMonth() + 1)}/${date.getFullYear()} ${two(date.getHours())}:${two(date.getMinutes())}`;
+    return `${two(day)}/${two(month)}/${year + (locale === 'th' ? 543 : 0)} ${time}`;
 }
-function parseEnglishDateTime(text: string): string | null {
+function parseDisplayDateTime(text: string, locale: Locale): string | null {
     const match = /^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})$/.exec(text);
     if (!match)
         return null;
     const [, dayText, monthText, yearText, hourText, minuteText] = match;
-    const [day, month, year, hour, minute] = [dayText, monthText, yearText, hourText, minuteText].map(Number);
-    const date = new Date(year, month - 1, day, hour, minute);
-    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day ||
-        date.getHours() !== hour || date.getMinutes() !== minute)
-        return null;
-    return date.toISOString();
+    const [day, month, displayYear, hour, minute] = [dayText, monthText, yearText, hourText, minuteText].map(Number);
+    const year = displayYear - (locale === 'th' ? 543 : 0);
+    return fromBangkokInput(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
 }
-function EnglishFirstRunInput({ value, onChange, t }: {
+function FirstRunInput({ value, onChange, t, locale }: {
     value: string | null | undefined;
     onChange: (value: string | null) => void;
     t: Translate;
+    locale: Locale;
 }) {
-    const [text, setText] = useState(() => toEnglishDateTime(value));
+    const [text, setText] = useState(() => toDisplayDateTime(value, locale));
+    const [touched, setTouched] = useState(false);
     const lastValue = useRef(value);
+    const lastLocale = useRef(locale);
     const textInput = useRef<HTMLInputElement>(null);
     const picker = useRef<HTMLInputElement>(null);
     useEffect(() => {
-        if (value !== lastValue.current) {
+        if (value !== lastValue.current || locale !== lastLocale.current) {
             lastValue.current = value;
-            setText(toEnglishDateTime(value));
+            lastLocale.current = locale;
+            setText(toDisplayDateTime(value, locale));
+            setTouched(false);
             textInput.current?.setCustomValidity('');
         }
-    }, [value]);
+    }, [value, locale]);
+    const invalid = text !== '' && parseDisplayDateTime(text, locale) === null;
     return <div className="ida-ingest-first-run-field">
-    <label htmlFor="ingest-first-run-en">{t('ingestConfig.firstRun')}</label>
+    <label htmlFor="ingest-first-run">{t('ingestConfig.firstRun')}</label>
     <div className="ida-ingest-first-run-control">
-      <input ref={textInput} id="ingest-first-run-en" className="ida-input" type="text" inputMode="numeric" placeholder={t('ingestConfig.firstRunPlaceholder')} value={text} onChange={event => {
+      <input ref={textInput} id="ingest-first-run" className="ida-input" type="text" inputMode="numeric" placeholder={t('ingestConfig.firstRunPlaceholder')} value={text} aria-invalid={touched && invalid ? true : undefined} aria-describedby={touched && invalid ? 'ingest-first-run-help ingest-first-run-error' : 'ingest-first-run-help'} onChange={event => {
             const nextText = event.target.value;
-            const nextValue = nextText === '' ? null : parseEnglishDateTime(nextText);
+            const nextValue = nextText === '' ? null : parseDisplayDateTime(nextText, locale);
             setText(nextText);
             event.target.setCustomValidity(nextText && !nextValue ? t('ingestConfig.firstRunInvalid') : '');
             lastValue.current = nextValue;
             onChange(nextValue);
-        }}/>
+        }} onBlur={() => setTouched(true)} onInvalid={() => setTouched(true)}/>
       <button type="button" className="ida-ingest-first-run-picker" aria-label={t('ingestConfig.firstRunPicker')} onClick={() => picker.current?.showPicker?.()}>
         <Icon name="calendar" size={18}/>
       </button>
-      <input ref={picker} className="ida-ingest-native-picker" type="datetime-local" tabIndex={-1} aria-hidden="true" value={toLocalInput(value)} onChange={event => {
-            const nextValue = event.target.value ? new Date(event.target.value).toISOString() : null;
+      <input ref={picker} className="ida-ingest-native-picker" type="datetime-local" tabIndex={-1} aria-hidden="true" value={toBangkokInput(value)} onChange={event => {
+            const nextValue = event.target.value ? fromBangkokInput(event.target.value) : null;
             lastValue.current = nextValue;
-            setText(toEnglishDateTime(nextValue));
+            setText(toDisplayDateTime(nextValue, locale));
             textInput.current?.setCustomValidity('');
             onChange(nextValue);
         }}/>
     </div>
+    <small id="ingest-first-run-help" className="ida-text-secondary">{t('ingestConfig.firstRunHelp')}</small>
+    {touched && invalid && <small id="ingest-first-run-error" className="ida-ingest-field-error" role="alert">
+      {t('ingestConfig.firstRunInvalid')}
+    </small>}
   </div>;
 }
 function resultLabel(value: string | null, t: Translate): string {
@@ -274,6 +295,8 @@ function InterfaceConfigContent() {
             cancelledList.current.scrollTop = 0;
     }
     const selectedDomainCount = interfaces.filter(row => scheduleDraft.datasetCodes.includes(row.code)).length;
+    const hisDomainCodes = interfaces.filter(isHisInterface).map(row => row.code);
+    const selectedHisDomainCount = hisDomainCodes.filter(code => scheduleDraft.datasetCodes.includes(code)).length;
     return <>
     <PageHeader title={t('ingestConfig.title')} description={t('ingestConfig.description', { hospital: config?.hospitalId ?? session?.hospitalId ?? '' })} breadcrumbs={[{ label: t('ingestConfig.home'), to: '/' }, { label: t('ingestConfig.title') }]}/>
     <p className="ida-ingest-note" role="status">
@@ -313,17 +336,26 @@ function InterfaceConfigContent() {
             <label>{t('ingestConfig.name')}<input className="ida-input" required minLength={2} maxLength={100} placeholder={t('ingestConfig.nameExample')} value={scheduleDraft.name} onChange={event => setScheduleDraft({ ...scheduleDraft, name: event.target.value })}/></label>
             <label>{t('ingestConfig.interval')}<input className="ida-input" type="number" required min={1} max={31536000} value={scheduleDraft.intervalValue} onChange={event => setScheduleDraft({ ...scheduleDraft,
                     intervalValue: event.target.value === '' ? '' : Number(event.target.value) })}/></label>
-            <label>{t('ingestConfig.unit')}<select className="ida-input" value={scheduleDraft.intervalUnit} onChange={event => setScheduleDraft({ ...scheduleDraft,
+            <label>{t('ingestConfig.unit')}<span className="ida-ingest-unit-select"><select className="ida-input" value={scheduleDraft.intervalUnit} onChange={event => setScheduleDraft({ ...scheduleDraft,
                     intervalUnit: event.target.value as ScheduleInput['intervalUnit'] })}>
-              {units.map(unit => <option key={unit} value={unit}>{unitLabel(unit, t)}</option>)}</select></label>
-            {locale === 'en'
-                    ? <EnglishFirstRunInput key={scheduleFormVersion} value={scheduleDraft.firstRunAt} t={t} onChange={firstRunAt => setScheduleDraft(current => ({ ...current, firstRunAt }))}/>
-                    : <label>{t('ingestConfig.firstRun')}<input className="ida-input" type="datetime-local" lang={locale} value={scheduleDraft.firstRunAt ? toLocalInput(scheduleDraft.firstRunAt) : ''} onChange={event => setScheduleDraft({ ...scheduleDraft,
-                            firstRunAt: event.target.value
-                                ? new Date(event.target.value).toISOString() : null })}/></label>}
+              {units.map(unit => <option key={unit} value={unit}>{unitLabel(unit, t)}</option>)}</select>
+              <Icon name="chevronDown" size={16}/></span></label>
+            <FirstRunInput key={scheduleFormVersion} value={scheduleDraft.firstRunAt} t={t} locale={locale} onChange={firstRunAt => setScheduleDraft(current => ({ ...current, firstRunAt }))}/>
           </div>
           <fieldset className="ida-ingest-domains">
             <legend>{t('ingestConfig.selectDomains')}</legend>
+            <div className="ida-ingest-quick-actions" role="group" aria-label={t('ingestConfig.quickActions')}>
+              <span className="ida-ingest-quick-title">{t('ingestConfig.quickActions')}</span>
+              <button className="ida-btn ida-btn--secondary ida-btn--sm" type="button" disabled={hisDomainCodes.length === 0 || selectedHisDomainCount === hisDomainCodes.length} onClick={() => setScheduleDraft(current => ({
+                    ...current,
+                    datasetCodes: Array.from(new Set([
+                        ...current.datasetCodes, ...hisDomainCodes,
+                    ])),
+                }))}>
+                <Icon name="database" size={16}/>
+                {t('ingestConfig.quickHisDomains')}
+              </button>
+            </div>
             <div className="ida-ingest-domain-toolbar">
               <span className="ida-ingest-domain-count" aria-live="polite">
                 {t('ingestConfig.selectedDomains', { selected: selectedDomainCount, total: interfaces.length })}
@@ -342,13 +374,17 @@ function InterfaceConfigContent() {
                 </button>
               </div>
             </div>
-            {interfaces.map(row => <label key={row.code} className="ida-ingest-check">
-              <input type="checkbox" checked={scheduleDraft.datasetCodes.includes(row.code)} onChange={event => setScheduleDraft({ ...scheduleDraft,
+            <div className="ida-ingest-domain-grid">
+              {interfaces.map(row => <label key={row.code} className="ida-ingest-check">
+                <input type="checkbox" checked={scheduleDraft.datasetCodes.includes(row.code)} onChange={event => setScheduleDraft(current => ({
+                        ...current,
                         datasetCodes: event.target.checked
-                            ? [...scheduleDraft.datasetCodes, row.code]
-                            : scheduleDraft.datasetCodes.filter(code => code !== row.code) })}/>
-              <span>{row.name} <code>{row.code}</code></span>
-            </label>)}
+                            ? Array.from(new Set([...current.datasetCodes, row.code]))
+                            : current.datasetCodes.filter(code => code !== row.code),
+                    }))}/>
+                <span>{row.name} <code>{row.code}</code></span>
+              </label>)}
+            </div>
           </fieldset>
           <div className="ida-ingest-actions">
             <label className="ida-ingest-check"><input type="checkbox" checked={scheduleDraft.enabled} onChange={event => setScheduleDraft({ ...scheduleDraft,

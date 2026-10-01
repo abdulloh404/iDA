@@ -79,12 +79,12 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, DatabaseRe
         var definitions = new List<InterfaceDto>();
         await using (var core = await registry.CoreSource.OpenConnectionAsync(ct))
         await using (var cmd = Cmd(core, null, """
-            SELECT code,coalesce(display_name,code),source_system
+            SELECT code,coalesce(display_name,code),source_system,data_category
             FROM core.ingest_interface_definition ORDER BY source_system,code
             """))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct))
-                definitions.Add(new InterfaceDto(reader.GetString(0), reader.GetString(1), reader.GetString(2), null));
+                definitions.Add(new InterfaceDto(reader.GetString(0), reader.GetString(1), reader.GetString(2), null, reader.GetString(3)));
 
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
