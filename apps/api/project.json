@@ -36,7 +36,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "exec node tools/run-api.mjs dev",
+        "command": "exec node tools/start-api.mjs dev",
         "cwd": ".",
         "env": {
           "DOTNET_ENVIRONMENT": "Local",
@@ -52,7 +52,7 @@
         "build"
       ],
       "options": {
-        "command": "exec node tools/run-api.mjs start",
+        "command": "exec node tools/start-api.mjs start",
         "cwd": "."
       }
     },
@@ -61,7 +61,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "exec node tools/run-api.mjs serve",
+        "command": "exec node tools/start-api.mjs serve",
         "cwd": "."
       }
     },
@@ -72,7 +72,7 @@
         "build"
       ],
       "options": {
-        "command": "node tools/run-database-task.mjs migrate",
+        "command": "node tools/migrate-db.mjs migrate",
         "cwd": "."
       }
     },
@@ -83,7 +83,7 @@
         "build"
       ],
       "options": {
-        "command": "node tools/run-database-task.mjs seed",
+        "command": "node tools/migrate-db.mjs seed",
         "cwd": "."
       }
     }

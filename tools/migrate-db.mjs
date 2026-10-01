@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolveApiEnvironment } from './api-settings.mjs';
+import { resolveApiEnvironment } from './start-api.mjs';
 
 const task = process.argv[2];
 if (!['migrate', 'seed'].includes(task)) {

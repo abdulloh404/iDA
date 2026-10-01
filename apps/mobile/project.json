@@ -35,7 +35,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "node ../../tools/run-mobile.mjs android debug",
+        "command": "node ../../tools/start-mobile.mjs android debug",
         "cwd": "apps/mobile",
         "tty": true
       }
@@ -45,7 +45,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "node ../../tools/run-mobile.mjs android release",
+        "command": "node ../../tools/start-mobile.mjs android release",
         "cwd": "apps/mobile",
         "tty": true
       }
@@ -55,7 +55,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "node ../../tools/run-mobile.mjs ios debug",
+        "command": "node ../../tools/start-mobile.mjs ios debug",
         "cwd": "apps/mobile",
         "tty": true
       }
@@ -65,7 +65,7 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "node ../../tools/run-mobile.mjs ios release",
+        "command": "node ../../tools/start-mobile.mjs ios release",
         "cwd": "apps/mobile",
         "tty": true
       }

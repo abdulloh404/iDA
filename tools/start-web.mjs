@@ -1,9 +1,7 @@
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { proxyApiRequest } from './api-gateway.mjs';
-import { apiProxyPattern, apiRouting } from './api-topology.mjs';
-import { readApiSettings, resolveApiEnvironment } from './api-settings.mjs';
+import { apiProxyPattern, apiRouting, proxyApiRequest, readApiSettings, resolveApiEnvironment } from './start-api.mjs';
 
 const environment = resolveApiEnvironment();
 const routing = apiRouting(process.env, readApiSettings());

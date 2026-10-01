@@ -8,7 +8,7 @@ function fail(message) {
 }
 
 if (!['android', 'ios'].includes(platform) || !['debug', 'release'].includes(mode)) {
-  fail('Usage: run-mobile.mjs <android|ios> <debug|release> [Flutter arguments]');
+  fail('Usage: start-mobile.mjs <android|ios> <debug|release> [Flutter arguments]');
 }
 
 if (platform === 'ios' && process.platform !== 'darwin') {
