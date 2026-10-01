@@ -9,7 +9,7 @@
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Startup/**/*.cs" />
+    <Compile Include="*.cs" />
     <Compile Include="iDA.Common/infrastructure/Configuration/AppSettings.cs" Link="Configuration/AppSettings.cs" />
     <Content Include="appsettings*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="appsettings.local.json" CopyToPublishDirectory="Never" />
