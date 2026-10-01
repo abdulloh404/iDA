@@ -22,6 +22,8 @@ public static class AppSettings
 
     private static string SettingsDirectory()
     {
+        var settingsDirectory = Environment.GetEnvironmentVariable("IDA_SETTINGS_DIRECTORY");
+        if (!string.IsNullOrWhiteSpace(settingsDirectory)) return Path.GetFullPath(settingsDirectory);
         var currentDirectory = Directory.GetCurrentDirectory();
         var workspaceApi = Path.Combine(currentDirectory, "apps", "api");
         if (File.Exists(Path.Combine(workspaceApi, "iDA.sln"))) return workspaceApi;

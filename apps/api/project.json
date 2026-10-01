@@ -24,7 +24,8 @@
       "outputs": [
         "{projectRoot}/iDA.Core/api/bin/Release/net9.0",
         "{projectRoot}/IDA.Ingest-worker/bin/Release/net9.0",
-        "{projectRoot}/iDA.Tanent/api/bin/Release/net9.0"
+        "{projectRoot}/iDA.Tanent/api/bin/Release/net9.0",
+        "{projectRoot}/bin/Release/net9.0"
       ],
       "options": {
         "command": "dotnet build iDA.sln --configuration Release",
@@ -36,8 +37,8 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "exec node tools/start-api.mjs dev",
-        "cwd": ".",
+        "command": "dotnet run --project Ida.Start.csproj --no-launch-profile -- --mode dev",
+        "cwd": "apps/api",
         "env": {
           "DOTNET_ENVIRONMENT": "Local",
           "ASPNETCORE_ENVIRONMENT": "Local"
@@ -52,8 +53,8 @@
         "build"
       ],
       "options": {
-        "command": "exec node tools/start-api.mjs start",
-        "cwd": "."
+        "command": "dotnet bin/Release/net9.0/iDA.Start.dll --mode start",
+        "cwd": "apps/api"
       }
     },
     "serve": {
@@ -61,8 +62,12 @@
       "cache": false,
       "continuous": true,
       "options": {
-        "command": "exec node tools/start-api.mjs serve",
-        "cwd": "."
+        "command": "dotnet run --project Ida.Start.csproj --no-launch-profile -- --mode serve",
+        "cwd": "apps/api",
+        "env": {
+          "DOTNET_ENVIRONMENT": "Local",
+          "ASPNETCORE_ENVIRONMENT": "Local"
+        }
       }
     },
     "migrate-databases": {

@@ -1,0 +1,2 @@
+start-api.sh text eol=lf
+start-api.cmd text eol=crlf
