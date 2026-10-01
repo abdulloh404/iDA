@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\infrastructure\Ida.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\iDA.Infrastructure\Ida.Infrastructure.csproj" />
     <ProjectReference Include="..\application\Ida.Application.csproj" />
   </ItemGroup>
 

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\core-api\application\Ida.Application.csproj" />
+    <ProjectReference Include="..\iDA.Core-api\application\Ida.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
