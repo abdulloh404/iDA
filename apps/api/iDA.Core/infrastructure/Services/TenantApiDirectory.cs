@@ -20,6 +20,13 @@ public sealed class TenantApiDirectory(DatabaseRegistry registry, IConfiguration
         return paths;
     }
 
-    public string Url(DatabaseEndpoint branch) => configuration[$"Api:Tenants:{branch.ConnectionKey}:Url"] ?? configuration[$"{branch.ConnectionKey}_API_URL"]
-        ?? throw new InvalidOperationException($"Set Api:Tenants:{branch.ConnectionKey}:Url on the Core API.");
+    public string Url(DatabaseEndpoint branch)
+    {
+        var url = configuration[$"Api:Tenants:{branch.ConnectionKey}:Url"] ?? configuration[$"{branch.ConnectionKey}_API_URL"]
+            ?? throw new InvalidOperationException($"Set Api:Tenants:{branch.ConnectionKey}:Url on the Core API.");
+        var pathBase = configuration[$"Api:Tenants:{branch.ConnectionKey}:PathBase"] ?? configuration[$"{branch.ConnectionKey}_API_PATH"] ?? "/" + branch.ConnectionKey.ToLowerInvariant();
+        return ServiceApiClient.WithPathBase(url, pathBase);
+    }
+
+    public string ServiceKey(DatabaseEndpoint branch) => ServiceApiClient.ReadDestinationKey(configuration, $"Api:Tenants:{branch.ConnectionKey}:ServiceKey");
 }

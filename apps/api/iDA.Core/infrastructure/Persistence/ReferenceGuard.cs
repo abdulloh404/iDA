@@ -43,7 +43,7 @@ public class ReferenceGuard(
         var input = new CoreReferenceRequest(entityType.Name, JsonSerializer.SerializeToElement(keyValue, key[0].ClrType));
         foreach (var branch in branches)
         {
-            var result = await client.PostAsync<CoreReferenceResult>(apis.Url(branch), "api/internal/references", input, ct);
+            var result = await client.PostAsync<CoreReferenceResult>(apis.Url(branch), "api/internal/references", input, apis.ServiceKey(branch), ct);
             if (result.Reason is not null) return result.Reason;
         }
 

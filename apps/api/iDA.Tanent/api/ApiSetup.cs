@@ -3,6 +3,7 @@ using Ida.Application.Features.Doctors;
 using Ida.Infrastructure;
 using Ida.Infrastructure.Databases;
 using Ida.Infrastructure.Security;
+using Ida.Infrastructure.Services;
 
 namespace Ida.Api;
 
@@ -25,7 +26,14 @@ public static class ApiSetup
     public static IServiceCollection AddIdaApi(this IServiceCollection services, IConfiguration configuration, DatabaseRuntime runtime)
     {
         if (runtime != DatabaseRuntime.Tenant) throw new ArgumentOutOfRangeException(nameof(runtime));
+        if (configuration.GetSection("Api:Tenants").GetChildren().Any())
+            throw new InvalidOperationException("Tenant API settings must contain only its own BU and the Core API, without Api:Tenants.");
+        var connectionKeys = configuration.GetSection("ConnectionStrings").GetChildren().Select(section => section.Key);
+        if (connectionKeys.Except(["Tenant", "TenantMigration"], StringComparer.OrdinalIgnoreCase).Any())
+            throw new InvalidOperationException("Tenant API settings may only contain Tenant and TenantMigration database connections.");
         services.AddCommonApi(configuration, typeof(DoctorCodeSpec).Assembly, "iDA Tenant API");
+        if (string.Equals(ServiceApiClient.ReadKey(configuration), ServiceApiClient.ReadDestinationKey(configuration, "Api:Core:ServiceKey"), StringComparison.Ordinal))
+            throw new InvalidOperationException("The Tenant API service key must differ from the Core API service key.");
         services.AddInfrastructure(configuration, runtime);
         return services;
     }

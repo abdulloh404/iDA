@@ -6,10 +6,17 @@ namespace Ida.Infrastructure.Services;
 
 public sealed class HttpCoreDirectory(ServiceApiClient client, IConfiguration configuration) : ICoreDirectory
 {
-    private string CoreUrl => configuration["Api:Core:Url"] is { Length: > 0 } url ? url : configuration["Api:CoreUrl"] ?? configuration["CORE_API_URL"] ?? throw new InvalidOperationException("Set Api:Core:Url for the Tenant API.");
+    private string CoreUrl
+    {
+        get
+        {
+            var url = configuration["Api:Core:Url"] is { Length: > 0 } configuredUrl ? configuredUrl : configuration["Api:CoreUrl"] ?? configuration["CORE_API_URL"] ?? throw new InvalidOperationException("Set Api:Core:Url for the Tenant API.");
+            return ServiceApiClient.WithPathBase(url, configuration["Api:Core:PathBase"]);
+        }
+    }
 
     private Task<T> ReadAsync<T>(string resource, object input, CancellationToken ct) =>
-        client.PostAsync<T>(CoreUrl, "api/internal/directory/" + resource, input, ct);
+        client.PostAsync<T>(CoreUrl, "api/internal/directory/" + resource, input, ServiceApiClient.ReadDestinationKey(configuration, "Api:Core:ServiceKey"), ct);
 
     private async Task<List<T>> ReadIdsAsync<T>(string resource, IEnumerable<Guid> ids, CancellationToken ct)
     {
