@@ -11,8 +11,8 @@ internal static class ServiceSettings
         var buIds = values.Keys.Select(key => Regex.Match(key, "^(BU[0-9]+)_", RegexOptions.CultureInvariant))
             .Where(match => match.Success).Select(match => match.Groups[1].Value).Distinct(StringComparer.Ordinal)
             .OrderBy(buId => buId.Length).ThenBy(buId => buId, StringComparer.Ordinal).ToArray();
-        string[] required = ["API_URL", "API_KNOWN_PROXIES", "CORS_ORIGINS", "ALLOWED_HOSTS", "CORE_API_URL", "CORE_API_PATH_BASE", "CORE_DEV_LISTEN_URL", "API_SERVICE_KEY", "CORE_CONNECTION", "CORE_MIGRATION_CONNECTION", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "JWT_LIFETIME_HOURS", "SECURITY_DATA_PROTECTION_KEY", "SECURITY_HASH_SALT", "LOG_LEVEL_DEFAULT", "LOG_LEVEL_MICROSOFT_ASPNETCORE"];
-        string[] buSuffixes = ["API_URL", "API_PATH_BASE", "DEV_LISTEN_URL", "SERVICE_KEY", "CONNECTION", "MIGRATION_CONNECTION", "INGEST_SERVICE_KEY"];
+        string[] required = ["API_URL", "API_KNOWN_PROXIES", "CORS_ORIGINS", "ALLOWED_HOSTS", "CORE_API_URL", "CORE_API_PATH_BASE", "CORE_DEV_LISTEN_URL", "API_SERVICE_KEY", "CORE_CONNECTION", "CORE_MIGRATION_CONNECTION", "CORE_DB_SCHEMA", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "JWT_LIFETIME_HOURS", "SECURITY_DATA_PROTECTION_KEY", "SECURITY_HASH_SALT", "LOG_LEVEL_DEFAULT", "LOG_LEVEL_MICROSOFT_ASPNETCORE"];
+        string[] buSuffixes = ["API_URL", "API_PATH_BASE", "DEV_LISTEN_URL", "SERVICE_KEY", "CONNECTION", "MIGRATION_CONNECTION", "DB_SCHEMA", "INGEST_SERVICE_KEY"];
         var missing = required.Concat(buIds.SelectMany(buId => buSuffixes.Select(suffix => $"{buId}_{suffix}")))
             .Where(key => !values.TryGetValue(key, out var value) || (key is not ("API_KNOWN_PROXIES" or "CORS_ORIGINS") && string.IsNullOrWhiteSpace(value))).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Missing required configuration keys: {string.Join(", ", missing)}.");
@@ -51,9 +51,10 @@ internal static class ServiceSettings
 
         var tenants = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var buId in buIds)
-            tenants[buId] = Endpoint(values[$"{buId}_API_URL"], values[$"{buId}_API_PATH_BASE"], values[$"{buId}_SERVICE_KEY"]);
+            tenants[buId] = Endpoint(values[$"{buId}_API_URL"], values[$"{buId}_API_PATH_BASE"], values[$"{buId}_SERVICE_KEY"], values.GetValueOrDefault($"{buId}_HOSPITAL_ID", buId));
 
         var coreSettings = CommonSettings(values, lifetimeHours);
+        coreSettings["CORE_DB_SCHEMA"] = values["CORE_DB_SCHEMA"];
         coreSettings["Api"] = new Dictionary<string, object?>
         {
             ["Mode"] = "Core",
@@ -76,6 +77,9 @@ internal static class ServiceSettings
         foreach (var buId in buIds)
         {
             var tenantSettings = CommonSettings(values, lifetimeHours);
+            tenantSettings["CORE_DB_SCHEMA"] = values["CORE_DB_SCHEMA"];
+            tenantSettings[$"{buId}_DB_SCHEMA"] = values[$"{buId}_DB_SCHEMA"];
+            tenantSettings[$"{buId}_HOSPITAL_ID"] = values.GetValueOrDefault($"{buId}_HOSPITAL_ID", buId);
             tenantSettings["Api"] = new Dictionary<string, object?>
             {
                 ["Mode"] = "Tenant",
@@ -92,6 +96,9 @@ internal static class ServiceSettings
             var workerSettings = new Dictionary<string, object?>
             {
                 ["BU_ID"] = buId,
+                ["CORE_DB_SCHEMA"] = values["CORE_DB_SCHEMA"],
+                [$"{buId}_DB_SCHEMA"] = values[$"{buId}_DB_SCHEMA"],
+                [$"{buId}_HOSPITAL_ID"] = values.GetValueOrDefault($"{buId}_HOSPITAL_ID", buId),
                 ["Api"] = new Dictionary<string, object?>
                 {
                     ["Core"] = Endpoint(values["CORE_API_URL"], values["CORE_API_PATH_BASE"], values["API_SERVICE_KEY"]),
@@ -139,10 +146,11 @@ internal static class ServiceSettings
         ["TenantMigration"] = values[$"{buId}_MIGRATION_CONNECTION"],
     };
 
-    private static Dictionary<string, object?> Endpoint(string url, string pathBase, string? serviceKey = null)
+    private static Dictionary<string, object?> Endpoint(string url, string pathBase, string? serviceKey = null, string? hospitalId = null)
     {
         var endpoint = new Dictionary<string, object?> { ["Url"] = url, ["PathBase"] = pathBase };
         if (serviceKey is not null) endpoint["ServiceKey"] = serviceKey;
+        if (hospitalId is not null) endpoint["HospitalId"] = hospitalId;
         return endpoint;
     }
 

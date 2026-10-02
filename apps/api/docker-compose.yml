@@ -47,9 +47,12 @@ services:
       Api__Tenants__BU01__Url: ${BU01_INTERNAL_API_URL:?Set BU01_INTERNAL_API_URL in apps/api/.env}
       Api__Tenants__BU01__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in apps/api/.env}
       Api__Tenants__BU01__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in apps/api/.env}
+      Api__Tenants__BU01__HospitalId: ${BU01_HOSPITAL_ID:-BU01}
       Api__Tenants__BU02__Url: ${BU02_INTERNAL_API_URL:?Set BU02_INTERNAL_API_URL in apps/api/.env}
       Api__Tenants__BU02__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in apps/api/.env}
       Api__Tenants__BU02__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in apps/api/.env}
+      Api__Tenants__BU02__HospitalId: ${BU02_HOSPITAL_ID:-BU02}
+      CORE_DB_SCHEMA: ${CORE_DB_SCHEMA:?Set CORE_DB_SCHEMA in apps/api/.env}
       ConnectionStrings__Core: ${CORE_CONNECTION:?Set CORE_CONNECTION in apps/api/.env}
       ConnectionStrings__CoreMigration: ${CORE_MIGRATION_CONNECTION:?Set CORE_MIGRATION_CONNECTION in apps/api/.env}
     networks: [core, bu01, bu02]
@@ -68,6 +71,9 @@ services:
       Api__BuId: BU01
       Api__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in apps/api/.env}
       Api__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in apps/api/.env}
+      CORE_DB_SCHEMA: ${CORE_DB_SCHEMA:?Set CORE_DB_SCHEMA in apps/api/.env}
+      BU01_DB_SCHEMA: ${BU01_DB_SCHEMA:?Set BU01_DB_SCHEMA in apps/api/.env}
+      BU01_HOSPITAL_ID: ${BU01_HOSPITAL_ID:-BU01}
       ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in apps/api/.env}
       ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
@@ -83,6 +89,9 @@ services:
       <<: [*environment, *core-client]
       BU_ID: BU01
       Api__ServiceKey: ${BU01_INGEST_SERVICE_KEY:?Set BU01_INGEST_SERVICE_KEY in apps/api/.env}
+      CORE_DB_SCHEMA: ${CORE_DB_SCHEMA:?Set CORE_DB_SCHEMA in apps/api/.env}
+      BU01_DB_SCHEMA: ${BU01_DB_SCHEMA:?Set BU01_DB_SCHEMA in apps/api/.env}
+      BU01_HOSPITAL_ID: ${BU01_HOSPITAL_ID:-BU01}
       ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in apps/api/.env}
       ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
@@ -102,6 +111,9 @@ services:
       Api__BuId: BU02
       Api__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in apps/api/.env}
       Api__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in apps/api/.env}
+      CORE_DB_SCHEMA: ${CORE_DB_SCHEMA:?Set CORE_DB_SCHEMA in apps/api/.env}
+      BU02_DB_SCHEMA: ${BU02_DB_SCHEMA:?Set BU02_DB_SCHEMA in apps/api/.env}
+      BU02_HOSPITAL_ID: ${BU02_HOSPITAL_ID:-BU02}
       ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in apps/api/.env}
       ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
@@ -117,6 +129,9 @@ services:
       <<: [*environment, *core-client]
       BU_ID: BU02
       Api__ServiceKey: ${BU02_INGEST_SERVICE_KEY:?Set BU02_INGEST_SERVICE_KEY in apps/api/.env}
+      CORE_DB_SCHEMA: ${CORE_DB_SCHEMA:?Set CORE_DB_SCHEMA in apps/api/.env}
+      BU02_DB_SCHEMA: ${BU02_DB_SCHEMA:?Set BU02_DB_SCHEMA in apps/api/.env}
+      BU02_HOSPITAL_ID: ${BU02_HOSPITAL_ID:-BU02}
       ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in apps/api/.env}
       ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
