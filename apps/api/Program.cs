@@ -6,7 +6,7 @@ using Yarp.ReverseProxy.Configuration;
 if (args.Any(argument => argument is "--help" or "-h"))
 {
     Console.WriteLine("Usage: start-api [dev|serve|start] [--environment Local|Development|Production]");
-    Console.WriteLine("Default: dev (dotnet watch), Local. Configuration comes from the workspace root .env.");
+    Console.WriteLine("Default: dev (dotnet watch), Local. Configuration comes from apps/api/.env.");
     return 0;
 }
 
@@ -14,7 +14,7 @@ try
 {
     var options = StartOptions.Parse(args);
     var apiDirectory = RootEnvironment.ApiDirectory();
-    var envPath = Path.GetFullPath(Path.Combine(apiDirectory, "..", "..", ".env"));
+    var envPath = Path.Combine(apiDirectory, ".env");
     var values = RootEnvironment.Read(envPath);
     var services = ServiceSettings.Create(values);
     var proxyUrl = values["API_URL"].TrimEnd('/');

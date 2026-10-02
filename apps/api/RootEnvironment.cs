@@ -14,7 +14,7 @@ internal static class RootEnvironment
 
     public static IReadOnlyDictionary<string, string> Read(string path)
     {
-        if (!File.Exists(path)) throw new InvalidOperationException($"Root .env was not found at {path}.");
+        if (!File.Exists(path)) throw new InvalidOperationException($"API .env was not found at {path}.");
         var values = new Dictionary<string, string>(StringComparer.Ordinal);
         var lineNumber = 0;
         foreach (var raw in File.ReadLines(path))
@@ -28,7 +28,7 @@ internal static class RootEnvironment
             var key = line[..separator].Trim();
             if (!Regex.IsMatch(key, "^[A-Za-z_][A-Za-z0-9_]*$")) throw InvalidLine(lineNumber);
             if (!values.TryAdd(key, ParseValue(line[(separator + 1)..].Trim(), lineNumber)))
-                throw new InvalidOperationException($"Duplicate variable {key} in root .env at line {lineNumber}.");
+                throw new InvalidOperationException($"Duplicate variable {key} in apps/api/.env at line {lineNumber}.");
         }
         return values;
     }
@@ -68,5 +68,5 @@ internal static class RootEnvironment
         throw InvalidLine(lineNumber);
     }
 
-    private static InvalidOperationException InvalidLine(int lineNumber) => new($"Invalid root .env syntax at line {lineNumber}.");
+    private static InvalidOperationException InvalidLine(int lineNumber) => new($"Invalid apps/api/.env syntax at line {lineNumber}.");
 }

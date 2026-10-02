@@ -11,8 +11,8 @@ internal static class ServiceSettings
         var buIds = values.Keys.Select(key => Regex.Match(key, "^(BU[0-9]+)_", RegexOptions.CultureInvariant))
             .Where(match => match.Success).Select(match => match.Groups[1].Value).Distinct(StringComparer.Ordinal)
             .OrderBy(buId => buId.Length).ThenBy(buId => buId, StringComparer.Ordinal).ToArray();
-        string[] required = ["API_URL", "API_KNOWN_PROXIES", "CORS_ORIGINS", "ALLOWED_HOSTS", "CORE_API_URL", "CORE_API_PATH_BASE", "CORE_LISTEN_URL", "API_SERVICE_KEY", "CORE_CONNECTION", "CORE_MIGRATION_CONNECTION", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "JWT_LIFETIME_HOURS", "SECURITY_DATA_PROTECTION_KEY", "SECURITY_HASH_SALT", "LOG_LEVEL_DEFAULT", "LOG_LEVEL_MICROSOFT_ASPNETCORE"];
-        string[] buSuffixes = ["API_URL", "API_PATH_BASE", "LISTEN_URL", "SERVICE_KEY", "CONNECTION", "MIGRATION_CONNECTION", "INGEST_SERVICE_KEY"];
+        string[] required = ["API_URL", "API_KNOWN_PROXIES", "CORS_ORIGINS", "ALLOWED_HOSTS", "CORE_API_URL", "CORE_API_PATH_BASE", "CORE_DEV_LISTEN_URL", "API_SERVICE_KEY", "CORE_CONNECTION", "CORE_MIGRATION_CONNECTION", "JWT_KEY", "JWT_ISSUER", "JWT_AUDIENCE", "JWT_LIFETIME_HOURS", "SECURITY_DATA_PROTECTION_KEY", "SECURITY_HASH_SALT", "LOG_LEVEL_DEFAULT", "LOG_LEVEL_MICROSOFT_ASPNETCORE"];
+        string[] buSuffixes = ["API_URL", "API_PATH_BASE", "DEV_LISTEN_URL", "SERVICE_KEY", "CONNECTION", "MIGRATION_CONNECTION", "INGEST_SERVICE_KEY"];
         var missing = required.Concat(buIds.SelectMany(buId => buSuffixes.Select(suffix => $"{buId}_{suffix}")))
             .Where(key => !values.TryGetValue(key, out var value) || (key is not ("API_KNOWN_PROXIES" or "CORS_ORIGINS") && string.IsNullOrWhiteSpace(value))).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Missing required configuration keys: {string.Join(", ", missing)}.");
@@ -34,11 +34,11 @@ internal static class ServiceSettings
         if (knownProxies.Any(value => !IPAddress.TryParse(value, out _))) throw new InvalidOperationException("API_KNOWN_PROXIES must contain IP addresses.");
         var listenEndpoints = new Dictionary<(string Host, int Port), string>();
         RegisterListenUrl(values, "API_URL", listenEndpoints);
-        RegisterListenUrl(values, "CORE_LISTEN_URL", listenEndpoints, loopbackOnly: true);
+        RegisterListenUrl(values, "CORE_DEV_LISTEN_URL", listenEndpoints, loopbackOnly: true);
         ValidatePublicEndpoint(values, "CORE_API_URL", "CORE_API_PATH_BASE");
         foreach (var buId in buIds)
         {
-            RegisterListenUrl(values, $"{buId}_LISTEN_URL", listenEndpoints, loopbackOnly: true);
+            RegisterListenUrl(values, $"{buId}_DEV_LISTEN_URL", listenEndpoints, loopbackOnly: true);
             ValidatePublicEndpoint(values, $"{buId}_API_URL", $"{buId}_API_PATH_BASE");
         }
         var routeKeys = new[] { "CORE_API_PATH_BASE" }.Concat(buIds.Select(buId => $"{buId}_API_PATH_BASE")).ToArray();
@@ -57,7 +57,7 @@ internal static class ServiceSettings
         coreSettings["Api"] = new Dictionary<string, object?>
         {
             ["Mode"] = "Core",
-            ["Urls"] = values["CORE_LISTEN_URL"],
+            ["Urls"] = values["CORE_DEV_LISTEN_URL"],
             ["PathBase"] = values["CORE_API_PATH_BASE"],
             ["Core"] = Endpoint(values["CORE_API_URL"], values["CORE_API_PATH_BASE"]),
             ["Tenants"] = tenants,
@@ -71,7 +71,7 @@ internal static class ServiceSettings
         };
         var services = new List<ServiceDefinition>
         {
-            new("Core", null, "iDA.Core/api/Ida.Api.csproj", "iDA.Core.Api", coreSettings, false, values["CORE_LISTEN_URL"], values["CORE_API_PATH_BASE"]),
+            new("Core", null, "iDA.Core/api/Ida.Api.csproj", "iDA.Core.Api", coreSettings, false, values["CORE_DEV_LISTEN_URL"], values["CORE_API_PATH_BASE"]),
         };
         foreach (var buId in buIds)
         {
@@ -80,14 +80,14 @@ internal static class ServiceSettings
             {
                 ["Mode"] = "Tenant",
                 ["BuId"] = buId,
-                ["Urls"] = values[$"{buId}_LISTEN_URL"],
+                ["Urls"] = values[$"{buId}_DEV_LISTEN_URL"],
                 ["PathBase"] = values[$"{buId}_API_PATH_BASE"],
                 ["Core"] = Endpoint(values["CORE_API_URL"], values["CORE_API_PATH_BASE"], values["API_SERVICE_KEY"]),
                 ["ServiceKey"] = values[$"{buId}_SERVICE_KEY"],
                 ["KnownProxies"] = knownProxies.ToArray(),
             };
             tenantSettings["ConnectionStrings"] = TenantConnections(values, buId);
-            services.Add(new($"Tenant-{buId}", buId, "iDA.Tanent/api/Ida.Tenant.Api.csproj", "iDA.Tenant.Api", tenantSettings, false, values[$"{buId}_LISTEN_URL"], values[$"{buId}_API_PATH_BASE"]));
+            services.Add(new($"Tenant-{buId}", buId, "iDA.Tanent/api/Ida.Tenant.Api.csproj", "iDA.Tenant.Api", tenantSettings, false, values[$"{buId}_DEV_LISTEN_URL"], values[$"{buId}_API_PATH_BASE"]));
 
             var workerSettings = new Dictionary<string, object?>
             {

@@ -13,22 +13,20 @@ x-environment: &environment
 
 x-api-environment: &api-environment
   <<: *environment
-  ASPNETCORE_URLS: http://0.0.0.0:3100
-  Api__Urls: http://0.0.0.0:3100
   API_KNOWN_PROXIES: ${API_KNOWN_PROXIES:-}
   CORS_ORIGINS: ${CORS_ORIGINS:-}
   AllowedHosts: ${ALLOWED_HOSTS:-*}
-  Jwt__Key: ${JWT_KEY:?Set JWT_KEY in root .env}
-  Jwt__Issuer: ${JWT_ISSUER:?Set JWT_ISSUER in root .env}
-  Jwt__Audience: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in root .env}
+  Jwt__Key: ${JWT_KEY:?Set JWT_KEY in apps/api/.env}
+  Jwt__Issuer: ${JWT_ISSUER:?Set JWT_ISSUER in apps/api/.env}
+  Jwt__Audience: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in apps/api/.env}
   Jwt__LifetimeHours: ${JWT_LIFETIME_HOURS:-8}
-  Security__DataProtectionKey: ${SECURITY_DATA_PROTECTION_KEY:?Set SECURITY_DATA_PROTECTION_KEY in root .env}
-  Security__HashSalt: ${SECURITY_HASH_SALT:?Set SECURITY_HASH_SALT in root .env}
+  Security__DataProtectionKey: ${SECURITY_DATA_PROTECTION_KEY:?Set SECURITY_DATA_PROTECTION_KEY in apps/api/.env}
+  Security__HashSalt: ${SECURITY_HASH_SALT:?Set SECURITY_HASH_SALT in apps/api/.env}
 
 x-core-client: &core-client
-  Api__Core__Url: http://core-api:3100
-  Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
-  Api__Core__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in root .env}
+  Api__Core__Url: ${CORE_INTERNAL_API_URL:?Set CORE_INTERNAL_API_URL in apps/api/.env}
+  Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in apps/api/.env}
+  Api__Core__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in apps/api/.env}
 
 services:
   core-api:
@@ -39,19 +37,21 @@ services:
       target: core
     environment:
       <<: *api-environment
+      ASPNETCORE_URLS: ${CORE_DOCKER_LISTEN_URL:?Set CORE_DOCKER_LISTEN_URL in apps/api/.env}
+      Api__Urls: ${CORE_DOCKER_LISTEN_URL:?Set CORE_DOCKER_LISTEN_URL in apps/api/.env}
       Api__Mode: Core
-      Api__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
-      Api__Core__Url: http://core-api:3100
-      Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
-      Api__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in root .env}
-      Api__Tenants__BU01__Url: http://tenant-bu01:3100
-      Api__Tenants__BU01__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
-      Api__Tenants__BU01__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in root .env}
-      Api__Tenants__BU02__Url: http://tenant-bu02:3100
-      Api__Tenants__BU02__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
-      Api__Tenants__BU02__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in root .env}
-      ConnectionStrings__Core: ${CORE_CONNECTION:?Set CORE_CONNECTION in root .env}
-      ConnectionStrings__CoreMigration: ${CORE_MIGRATION_CONNECTION:?Set CORE_MIGRATION_CONNECTION in root .env}
+      Api__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in apps/api/.env}
+      Api__Core__Url: ${CORE_INTERNAL_API_URL:?Set CORE_INTERNAL_API_URL in apps/api/.env}
+      Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in apps/api/.env}
+      Api__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in apps/api/.env}
+      Api__Tenants__BU01__Url: ${BU01_INTERNAL_API_URL:?Set BU01_INTERNAL_API_URL in apps/api/.env}
+      Api__Tenants__BU01__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in apps/api/.env}
+      Api__Tenants__BU01__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in apps/api/.env}
+      Api__Tenants__BU02__Url: ${BU02_INTERNAL_API_URL:?Set BU02_INTERNAL_API_URL in apps/api/.env}
+      Api__Tenants__BU02__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in apps/api/.env}
+      Api__Tenants__BU02__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in apps/api/.env}
+      ConnectionStrings__Core: ${CORE_CONNECTION:?Set CORE_CONNECTION in apps/api/.env}
+      ConnectionStrings__CoreMigration: ${CORE_MIGRATION_CONNECTION:?Set CORE_MIGRATION_CONNECTION in apps/api/.env}
     networks: [core, bu01, bu02]
 
   tenant-bu01:
@@ -62,12 +62,14 @@ services:
       target: tenant
     environment:
       <<: [*api-environment, *core-client]
+      ASPNETCORE_URLS: ${BU01_DOCKER_LISTEN_URL:?Set BU01_DOCKER_LISTEN_URL in apps/api/.env}
+      Api__Urls: ${BU01_DOCKER_LISTEN_URL:?Set BU01_DOCKER_LISTEN_URL in apps/api/.env}
       Api__Mode: Tenant
       Api__BuId: BU01
-      Api__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
-      Api__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in root .env}
-      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in root .env}
-      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in root .env}
+      Api__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in apps/api/.env}
+      Api__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in apps/api/.env}
+      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in apps/api/.env}
+      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
     networks: [bu01]
 
@@ -80,9 +82,9 @@ services:
     environment:
       <<: [*environment, *core-client]
       BU_ID: BU01
-      Api__ServiceKey: ${BU01_INGEST_SERVICE_KEY:?Set BU01_INGEST_SERVICE_KEY in root .env}
-      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in root .env}
-      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in root .env}
+      Api__ServiceKey: ${BU01_INGEST_SERVICE_KEY:?Set BU01_INGEST_SERVICE_KEY in apps/api/.env}
+      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in apps/api/.env}
+      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
     networks: [bu01]
 
@@ -94,12 +96,14 @@ services:
       target: tenant
     environment:
       <<: [*api-environment, *core-client]
+      ASPNETCORE_URLS: ${BU02_DOCKER_LISTEN_URL:?Set BU02_DOCKER_LISTEN_URL in apps/api/.env}
+      Api__Urls: ${BU02_DOCKER_LISTEN_URL:?Set BU02_DOCKER_LISTEN_URL in apps/api/.env}
       Api__Mode: Tenant
       Api__BuId: BU02
-      Api__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
-      Api__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in root .env}
-      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in root .env}
-      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in root .env}
+      Api__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in apps/api/.env}
+      Api__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in apps/api/.env}
+      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in apps/api/.env}
+      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
     networks: [bu02]
 
@@ -112,9 +116,9 @@ services:
     environment:
       <<: [*environment, *core-client]
       BU_ID: BU02
-      Api__ServiceKey: ${BU02_INGEST_SERVICE_KEY:?Set BU02_INGEST_SERVICE_KEY in root .env}
-      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in root .env}
-      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in root .env}
+      Api__ServiceKey: ${BU02_INGEST_SERVICE_KEY:?Set BU02_INGEST_SERVICE_KEY in apps/api/.env}
+      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in apps/api/.env}
+      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in apps/api/.env}
     depends_on: [core-api]
     networks: [bu02]
 
@@ -124,10 +128,13 @@ services:
     ports:
       - '3100:3100'
     environment:
-      CORE_API_PATH_BASE: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
-      BU01_API_PATH_BASE: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
-      BU02_API_PATH_BASE: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
-      NGINX_ENVSUBST_FILTER: '^(CORE_API_PATH_BASE|BU01_API_PATH_BASE|BU02_API_PATH_BASE)$$'
+      CORE_INTERNAL_API_URL: ${CORE_INTERNAL_API_URL:?Set CORE_INTERNAL_API_URL in apps/api/.env}
+      BU01_INTERNAL_API_URL: ${BU01_INTERNAL_API_URL:?Set BU01_INTERNAL_API_URL in apps/api/.env}
+      BU02_INTERNAL_API_URL: ${BU02_INTERNAL_API_URL:?Set BU02_INTERNAL_API_URL in apps/api/.env}
+      CORE_API_PATH_BASE: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in apps/api/.env}
+      BU01_API_PATH_BASE: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in apps/api/.env}
+      BU02_API_PATH_BASE: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in apps/api/.env}
+      NGINX_ENVSUBST_FILTER: '^(CORE_API_PATH_BASE|BU01_API_PATH_BASE|BU02_API_PATH_BASE|CORE_INTERNAL_API_URL|BU01_INTERNAL_API_URL|BU02_INTERNAL_API_URL)$$'
     volumes:
       - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
     depends_on: [core-api, tenant-bu01, tenant-bu02]
