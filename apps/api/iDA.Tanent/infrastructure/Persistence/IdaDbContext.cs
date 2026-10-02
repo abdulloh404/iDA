@@ -137,14 +137,23 @@ public class IdaDbContext : DbContext
     {
         if (!Layout.IsBranch) return;
 
-        var invalid = ChangeTracker.Entries()
-            .FirstOrDefault(entry =>
-                (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted) &&
-                !DatabaseLayout.IsBranchTable(entry.Metadata.ClrType));
+        foreach (var entry in ChangeTracker.Entries().Where(entry => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToArray())
+        {
+            if (!DatabaseLayout.IsBranchTable(entry.Metadata.ClrType))
+                throw new InvalidOperationException($"Entity '{entry.Metadata.ClrType.Name}' belongs to the Core database and cannot be saved through a BU context.");
 
-        if (invalid is not null)
-            throw new InvalidOperationException(
-                $"Entity '{invalid.Metadata.ClrType.Name}' belongs to the Core database and cannot be saved through a BU context.");
+            if (entry.Metadata.FindProperty("HospitalId")?.ClrType != typeof(string)) continue;
+            if (!_tenant.HasTenant || string.IsNullOrWhiteSpace(CurrentHospitalId))
+                throw new InvalidOperationException("The BU database requires a configured hospital ID before saving data.");
+
+            var hospital = entry.Property("HospitalId");
+            if (entry.State == EntityState.Added && string.IsNullOrWhiteSpace(hospital.CurrentValue as string))
+                hospital.CurrentValue = CurrentHospitalId;
+
+            if (!string.Equals(hospital.CurrentValue as string, CurrentHospitalId, StringComparison.Ordinal)
+                || (entry.State != EntityState.Added && !string.Equals(hospital.OriginalValue as string, CurrentHospitalId, StringComparison.Ordinal)))
+                throw new InvalidOperationException($"Entity '{entry.Metadata.ClrType.Name}' must belong to the configured BU '{CurrentHospitalId}'.");
+        }
     }
 
 }

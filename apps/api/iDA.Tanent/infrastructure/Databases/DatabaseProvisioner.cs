@@ -14,6 +14,7 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
         await using var connection = await registry.OpenAsync(endpoint, ct, administrator: true);
         await using var transaction = await connection.BeginTransactionAsync(ct);
         await EnsureRuntimeRoleAsync(connection, transaction, endpoint, ct);
+        await TenantSecurityProvisioner.RemoveRowSecurityAsync(connection, transaction, endpoint, ct);
         await using var context = DatabaseContexts.CreateSchemaContext(
             endpoint,
             registry.CoreSchemaName,
@@ -23,7 +24,6 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
         var ingest = new IngestSchemaProvisioner();
         await TenantSecurityProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
         await ingest.ApplyBranchAsync(connection, transaction, endpoint, ct);
-        await TenantSecurityProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
 
         await transaction.CommitAsync(ct);
     }

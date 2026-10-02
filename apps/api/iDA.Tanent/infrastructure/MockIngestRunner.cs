@@ -12,10 +12,10 @@ public sealed class MockIngestRunner(DatabaseRegistry registry, ICoreDirectory c
         TriggerMockIngestInput input, CancellationToken ct)
     {
         var endpoint = await registry.GetBranchAsync(hospital, ct);
+        if (string.IsNullOrWhiteSpace(endpoint.HospitalId)) throw ApiException.Forbidden();
+        hospital = endpoint.HospitalId;
         await using var db = await registry.OpenAsync(endpoint, ct);
         await CheckRuntimeRole(db, ct);
-        await Exec(db, null, "SELECT set_config('app.hospital_id',@hospital,false)", ct,
-            ("hospital", hospital));
         var codes = input.DatasetCodes ?? [];
         if (input.Source == "custom")
         {

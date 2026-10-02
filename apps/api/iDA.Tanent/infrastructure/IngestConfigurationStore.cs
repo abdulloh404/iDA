@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirectory core) : IIngestConfigurationStore
+public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirectory core, DatabaseRegistry registry) : IIngestConfigurationStore
 {
     private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction? tx,
         string sql, params (string Name, object? Value)[] values)
@@ -20,13 +20,12 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
         return cmd;
     }
 
-    private static async Task Tenant(NpgsqlConnection db, NpgsqlTransaction tx,
-        string hospital, CancellationToken ct)
+    private string RequireHospital(string hospital)
     {
-        if (string.IsNullOrWhiteSpace(hospital)) throw ApiException.Forbidden();
-        await using var cmd = Cmd(db, tx, "SELECT set_config('app.hospital_id',@hospital,true)",
-            ("hospital", hospital));
-        await cmd.ExecuteNonQueryAsync(ct);
+        var selectedHospital = registry.FixedBranch.HospitalId;
+        if (string.IsNullOrWhiteSpace(selectedHospital) || !string.Equals(hospital, selectedHospital, StringComparison.Ordinal))
+            throw ApiException.Forbidden();
+        return selectedHospital;
     }
 
     private static async Task<string?> InterfaceSnapshot(NpgsqlConnection db,
@@ -74,11 +73,11 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
 
     public async Task<IngestConfigurationDto> Read(string hospital, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         var definitions = await core.IngestDefinitionsAsync(ct);
 
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         var endpoints = new Dictionary<string, string?>(StringComparer.Ordinal);
         await using (var cmd = Cmd(db, tx, """
             SELECT dataset_code,endpoint_url
@@ -142,11 +141,11 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
     public async Task<CancelledSchedulePageDto> ReadCancelledSchedules(string hospital,
         DateTimeOffset? beforeAt, Guid? beforeId, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         if (beforeAt.HasValue != beforeId.HasValue || beforeId == Guid.Empty)
             throw ApiException.BadRequest("invalid_cursor", "ข้อมูลตำแหน่งหน้ารายการไม่ถูกต้อง");
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         const int pageSize = 10;
         var schedules = new List<ScheduleDto>();
         await using (var cmd = Cmd(db, tx, """
@@ -190,6 +189,7 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
     public async Task SaveInterface(string hospital, string code, InterfaceInput input,
         string actor, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         if (string.IsNullOrWhiteSpace(code) || code.Length > 100)
             throw ApiException.BadRequest("invalid_domain", "รหัสโดเมนไม่ถูกต้อง");
         var url = input.EndpointUrl?.Trim();
@@ -202,7 +202,6 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
             throw ApiException.NotFound("domain_not_found", "ไม่พบโดเมนนี้ในรายการที่รองรับ");
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         var oldValue = await InterfaceSnapshot(db, tx, hospital, code, ct);
         await using var cmd = Cmd(db, tx, """
             INSERT INTO bu.ingest_interface_config
@@ -224,6 +223,7 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
     public async Task<ScheduleDto> SaveSchedule(string hospital, Guid? id,
         ScheduleInput input, string actor, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         var name = input.Name?.Trim() ?? "";
         var codes = input.DatasetCodes?.Distinct(StringComparer.Ordinal).ToArray() ?? [];
         if (name.Length is < 2 or > 100 || codes.Length is < 1 or > 100 ||
@@ -248,7 +248,6 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
 
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         var scheduleId = id ?? Guid.CreateVersion7();
         var oldValue = id.HasValue
             ? await ScheduleSnapshot(db, tx, hospital, scheduleId, ct) : null;
@@ -315,11 +314,11 @@ public sealed class IngestConfigurationStore(NpgsqlDataSource source, ICoreDirec
     public async Task CancelSchedule(string hospital, Guid id, int revision,
         string actor, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         if (revision < 1)
             throw ApiException.BadRequest("revision_required", "ต้องส่งรุ่นข้อมูลเดิมเมื่อยกเลิกรอบงาน");
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         var oldValue = await ScheduleSnapshot(db, tx, hospital, id, ct)
             ?? throw ApiException.NotFound("schedule_not_found", "ไม่พบรอบดึงข้อมูลนี้");
         await using (var cmd = Cmd(db, tx, """

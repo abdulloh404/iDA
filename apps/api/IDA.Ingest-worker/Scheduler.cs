@@ -31,8 +31,6 @@ internal static class Scheduler
                 if (Convert.ToBoolean(bypassesRls))
                     throw new InvalidOperationException(
                         "Scheduler connection must not have SUPERUSER or BYPASSRLS.");
-                await Db.Exec(db, null, "SELECT set_config('app.hospital_id',@h,false)",
-                    ("h", hospital));
                 await Db.Exec(db, null, """
                     INSERT INTO bu.ingest_worker_heartbeat(hospital_id,last_seen_at)
                     VALUES(@h,now()) ON CONFLICT(hospital_id) DO UPDATE

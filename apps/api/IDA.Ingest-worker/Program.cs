@@ -110,8 +110,6 @@ var bypassesRls = await Db.Scalar(db, null, """
 if (Convert.ToBoolean(bypassesRls))
     throw new InvalidOperationException("Runtime connection must not have SUPERUSER or BYPASSRLS.");
 
-await Db.Exec(db, null, "SELECT set_config('app.hospital_id', @hospital, false)",
-    ("hospital", hospital));
 switch (command)
 {
     case "ingest":

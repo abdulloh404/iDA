@@ -24,8 +24,8 @@ public static class DependencyInjection
         services.AddScoped<IRuntimeDatabaseContexts>(provider => provider.GetRequiredService<DatabaseContexts>());
         services.AddScoped<ReferenceGuard>();
         services.AddScoped<IReferenceGuard>(provider => provider.GetRequiredService<ReferenceGuard>());
-        services.AddScoped<IIngestConfigurationStore>(provider => new IngestConfigurationStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>()));
-        services.AddScoped<IIngestMonitoringStore>(provider => new IngestMonitoringStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>()));
+        services.AddScoped<IIngestConfigurationStore>(provider => new IngestConfigurationStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>(), provider.GetRequiredService<DatabaseRegistry>()));
+        services.AddScoped<IIngestMonitoringStore>(provider => new IngestMonitoringStore(GetRequestSource(provider), provider.GetRequiredService<ICoreDirectory>(), provider.GetRequiredService<DatabaseRegistry>()));
         services.AddScoped<IMockIngestRunner, MockIngestRunner>();
         return services;
     }

@@ -85,12 +85,6 @@ public sealed class DatabaseConnectionFactory(IConfiguration configuration) : ID
         try
         {
             await connection.OpenAsync(ct);
-            if (!administrator && endpoint.Kind == "bu")
-            {
-                await using var command = new NpgsqlCommand("SELECT set_config('app.hospital_id', $1, false)", connection);
-                command.Parameters.AddWithValue(endpoint.HospitalId!);
-                await command.ExecuteNonQueryAsync(ct);
-            }
             return connection;
         }
         catch

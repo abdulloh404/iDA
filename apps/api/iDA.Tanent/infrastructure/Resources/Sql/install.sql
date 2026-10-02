@@ -503,28 +503,6 @@ CREATE OR REPLACE VIEW bu.his_source_record WITH (security_invoker=true) AS
 CREATE OR REPLACE VIEW bu.erp_source_record WITH (security_invoker=true) AS
     SELECT * FROM bu.ingest_record WHERE dataset_code = 'oracle_ar';
 
-DO $policy$
-DECLARE table_name text;
-BEGIN
-  FOREACH table_name IN ARRAY ARRAY['ingest_interface_config','ingest_schedule',
-      'ingest_schedule_dataset','ingest_schedule_execution','ingest_worker_heartbeat',
-      'ingest_config_event',
-      'ingest_batch','ingest_manual_request','ingest_run','ingest_run_event','ingest_response_page',
-      'ingest_record','ingest_staging_record','ingest_issue','ingest_change',
-      'trn_his_invoice','trn_his_xray','trn_his_none_df',
-      'trn_his_accrual_no_invoice','trn_oracle_ar',
-      'ingest_reconciliation','ingest_control_action','calc_run','calc_result'] LOOP
-    EXECUTE format('ALTER TABLE bu.%I ENABLE ROW LEVEL SECURITY', table_name);
-    EXECUTE format('ALTER TABLE bu.%I FORCE ROW LEVEL SECURITY', table_name);
-    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='bu'
-        AND tablename=table_name AND policyname='p_tenant') THEN
-      EXECUTE format('CREATE POLICY p_tenant ON bu.%I USING '
-        || '(hospital_id = current_setting(''app.hospital_id'', true)) '
-        || 'WITH CHECK (hospital_id = current_setting(''app.hospital_id'', true))', table_name);
-    END IF;
-  END LOOP;
-END $policy$;
-
 GRANT USAGE ON SCHEMA core, bu TO ida_app;
 GRANT SELECT, INSERT, UPDATE ON core.ingest_interface_definition TO ida_app;
 GRANT SELECT, INSERT, UPDATE ON bu.ingest_interface_config,bu.ingest_schedule,
@@ -542,4 +520,3 @@ GRANT SELECT, INSERT, UPDATE ON bu.ingest_batch,bu.ingest_staging_record TO ida_
 GRANT SELECT, INSERT, UPDATE ON bu.ingest_manual_request TO ida_app;
 GRANT SELECT, INSERT ON bu.ingest_issue TO ida_app;
 GRANT SELECT ON bu.his_source_record,bu.erp_source_record TO ida_app;
-

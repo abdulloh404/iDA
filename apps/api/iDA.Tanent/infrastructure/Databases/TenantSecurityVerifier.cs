@@ -8,29 +8,25 @@ public sealed class TenantSecurityVerifier(DatabaseRegistry registry)
     {
         var branch = registry.FixedBranch;
         await using var connection = await registry.OpenAsync(branch, ct);
+        await using (var roleCommand = new NpgsqlCommand("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user", connection))
+        {
+            if (await roleCommand.ExecuteScalarAsync(ct) is not false)
+                throw new InvalidOperationException($"Runtime role '{branch.Username}' must not have SUPERUSER or BYPASSRLS.");
+        }
         await using var command = new NpgsqlCommand("""
             SELECT c.relname
             FROM pg_class c
             JOIN pg_namespace n ON n.oid = c.relnamespace
-            WHERE n.nspname = $1 AND c.relkind = 'r'
-              AND EXISTS (
-                  SELECT 1
-                  FROM pg_attribute a
-                  WHERE a.attrelid = c.oid
-                    AND a.attname = 'hospital_id'
-                    AND NOT a.attisdropped)
-              AND NOT (
-                  c.relrowsecurity
-                  AND c.relforcerowsecurity
-                  AND EXISTS (
-                      SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid))
+            WHERE n.nspname = $1 AND c.relkind IN ('r', 'p')
+              AND (c.relrowsecurity OR c.relforcerowsecurity OR EXISTS (
+                  SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid AND p.polname = 'p_tenant'))
             ORDER BY 1
             """, connection);
         command.Parameters.AddWithValue(branch.SchemaName);
-        var unprotected = new List<string>();
+        var protectedTables = new List<string>();
         await using var reader = await command.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct)) unprotected.Add(reader.GetString(0));
-        if (unprotected.Count > 0)
-            throw new InvalidOperationException($"Row-level security is missing in {branch.ConnectionKey}: " + string.Join(", ", unprotected));
+        while (await reader.ReadAsync(ct)) protectedTables.Add(reader.GetString(0));
+        if (protectedTables.Count > 0)
+            throw new InvalidOperationException($"Legacy row-level security remains in {branch.ConnectionKey}. Run db:migrate before using the BU database: " + string.Join(", ", protectedTables));
     }
 }

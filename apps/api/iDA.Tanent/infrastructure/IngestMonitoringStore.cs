@@ -6,7 +6,7 @@ using NpgsqlTypes;
 
 namespace Ida.Infrastructure;
 
-public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirectory core) : IIngestMonitoringStore
+public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirectory core, DatabaseRegistry registry) : IIngestMonitoringStore
 {
     private static NpgsqlCommand Cmd(NpgsqlConnection db, NpgsqlTransaction? tx,
         string sql, params (string Name, object? Value)[] values)
@@ -20,29 +20,28 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
         return cmd;
     }
 
-    private static async Task Tenant(NpgsqlConnection db, NpgsqlTransaction tx,
-        string hospital, CancellationToken ct)
+    private string RequireHospital(string hospital)
     {
-        if (string.IsNullOrWhiteSpace(hospital)) throw ApiException.Forbidden();
-        await using var cmd = Cmd(db, tx, "SELECT set_config('app.hospital_id',@hospital,true)",
-            ("hospital", hospital));
-        await cmd.ExecuteNonQueryAsync(ct);
+        var selectedHospital = registry.FixedBranch.HospitalId;
+        if (string.IsNullOrWhiteSpace(selectedHospital) || !string.Equals(hospital, selectedHospital, StringComparison.Ordinal))
+            throw ApiException.Forbidden();
+        return selectedHospital;
     }
 
     public async Task<IngestBatchListDto> ListBatches(string hospital, ListRequest request,
         CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
-        var filter = BatchFilter(request);
+        var filter = BatchFilter(hospital, request);
 
         var total = Convert.ToInt32(await Scalar(db, tx,
             $"SELECT count(*) FROM bu.ingest_batch b WHERE {filter.Where}",
             filter.Values, ct));
 
         var summary = await ReadSummary(db, tx, filter, ct);
-        var legacy = await ReadLegacy(db, tx, request, ct);
+        var legacy = await ReadLegacy(db, tx, hospital, request, ct);
         var rows = new List<IngestBatchListItem>();
         var orderBy = BatchOrderBy(request.Sort);
         await using (var cmd = Command(db, tx, $"""
@@ -89,9 +88,9 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
     public async Task<IngestBatchDetail> GetBatch(string hospital, Guid batchId,
         CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
 
         IngestBatchListItem? batch = null;
         await using (var cmd = Cmd(db, tx, """
@@ -126,18 +125,18 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
         if (batch is null)
             throw ApiException.NotFound("batch_not_found", "ไม่พบ batch การนำเข้านี้");
 
-        var runs = await ReadRuns(db, tx, "r.batch_id=@id", [("id", batchId)], ct);
+        var runs = await ReadRuns(db, tx, hospital, "r.batch_id=@id", [("id", batchId)], ct);
         await tx.CommitAsync(ct);
         return new IngestBatchDetail(batch, runs);
     }
 
     public async Task<IngestRunDetail> GetRun(string hospital, Guid runId, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
 
-        var runs = await ReadRuns(db, tx, "r.id=@id", [("id", runId)], ct);
+        var runs = await ReadRuns(db, tx, hospital, "r.id=@id", [("id", runId)], ct);
         var run = runs.SingleOrDefault()
             ?? throw ApiException.NotFound("run_not_found", "ไม่พบรอบนำเข้านี้");
 
@@ -233,9 +232,9 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
     public async Task<IngestRawPageDetail> GetRawPage(string hospital, Guid runId,
         int pageNumber, CancellationToken ct)
     {
+        hospital = RequireHospital(hospital);
         await using var db = await source.OpenConnectionAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
-        await Tenant(db, tx, hospital, ct);
         await using var cmd = Cmd(db, tx, """
             SELECT run_id,dataset_code,page_number,received_at,raw_sha256,raw_body,payload::text
             FROM bu.ingest_response_page
@@ -277,9 +276,9 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
     }
 
     private static async Task<IngestLegacySummary> ReadLegacy(NpgsqlConnection db,
-        NpgsqlTransaction tx, ListRequest request, CancellationToken ct)
+        NpgsqlTransaction tx, string hospital, ListRequest request, CancellationToken ct)
     {
-        var filter = RunFilter(request, "r", legacyOnly: true);
+        var filter = RunFilter(hospital, request, "r", legacyOnly: true);
         await using var cmd = Command(db, tx, $"""
             SELECT count(r.id)::int,count(p.id)::int,min(r.started_at),max(r.started_at)
             FROM bu.ingest_run r
@@ -294,7 +293,7 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
     }
 
     private async Task<IReadOnlyList<IngestRunListItem>> ReadRuns(NpgsqlConnection db,
-        NpgsqlTransaction tx, string extraWhere, (string Name, object? Value)[] extraValues,
+        NpgsqlTransaction tx, string hospital, string extraWhere, (string Name, object? Value)[] extraValues,
         CancellationToken ct)
     {
         var rows = new List<IngestRunListItem>();
@@ -317,9 +316,9 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
             ) issue ON true
             LEFT JOIN bu.ingest_reconciliation x ON x.hospital_id=r.hospital_id
                 AND x.run_id=r.id
-            WHERE r.hospital_id=current_setting('app.hospital_id', true) AND {extraWhere}
+            WHERE r.hospital_id=@hospital AND {extraWhere}
             ORDER BY r.started_at DESC,r.id DESC
-            """, extraValues))
+            """, [("hospital", hospital), .. extraValues]))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
             while (await reader.ReadAsync(ct)) rows.Add(ReadRun(reader));
         if (rows.Count == 0) return rows;
@@ -331,10 +330,10 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
         return rows.Select(row => row with { DatasetName = names.GetValueOrDefault(row.DatasetCode) }).ToArray();
     }
 
-    private static SqlFilter BatchFilter(ListRequest request)
+    private static SqlFilter BatchFilter(string hospital, ListRequest request)
     {
-        var where = new List<string> { "b.hospital_id=current_setting('app.hospital_id', true)" };
-        var values = new List<(string Name, object? Value)>();
+        var where = new List<string> { "b.hospital_id=@hospital" };
+        var values = new List<(string Name, object? Value)> { ("hospital", hospital) };
         AddDateFilter(request.Filter("calledFrom"), "calledFrom",
             "(b.started_at AT TIME ZONE 'Asia/Bangkok')::date >= @calledFrom", where, values);
         AddDateFilter(request.Filter("calledTo"), "calledTo",
@@ -365,11 +364,11 @@ public sealed class IngestMonitoringStore(NpgsqlDataSource source, ICoreDirector
         return new SqlFilter(string.Join(" AND ", where), values.ToArray());
     }
 
-    private static SqlFilter RunFilter(ListRequest request, string alias, bool legacyOnly)
+    private static SqlFilter RunFilter(string hospital, ListRequest request, string alias, bool legacyOnly)
     {
-        var where = new List<string> { $"{alias}.hospital_id=current_setting('app.hospital_id', true)" };
+        var where = new List<string> { $"{alias}.hospital_id=@hospital" };
         if (legacyOnly) where.Add($"{alias}.batch_id IS NULL");
-        var values = new List<(string Name, object? Value)>();
+        var values = new List<(string Name, object? Value)> { ("hospital", hospital) };
         AddDateFilter(request.Filter("calledFrom"), "calledFrom",
             $"({alias}.started_at AT TIME ZONE 'Asia/Bangkok')::date >= @calledFrom", where, values);
         AddDateFilter(request.Filter("calledTo"), "calledTo",

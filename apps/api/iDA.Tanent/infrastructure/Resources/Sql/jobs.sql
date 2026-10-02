@@ -26,18 +26,3 @@ ALTER TABLE bu.ingest_job ADD COLUMN IF NOT EXISTS dataset_codes text[] NOT NULL
 CREATE INDEX IF NOT EXISTS ix_ingest_job_claim
     ON bu.ingest_job(hospital_id,available_at,created_at)
     WHERE status IN ('Pending','Running');
-
-ALTER TABLE bu.ingest_job ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bu.ingest_job FORCE ROW LEVEL SECURITY;
-
-DO $policy$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_policies
-        WHERE schemaname=current_schema() AND tablename='ingest_job' AND policyname='p_tenant'
-    ) THEN
-        CREATE POLICY p_tenant ON bu.ingest_job
-            USING (hospital_id = current_setting('app.hospital_id', true))
-            WITH CHECK (hospital_id = current_setting('app.hospital_id', true));
-    END IF;
-END $policy$;

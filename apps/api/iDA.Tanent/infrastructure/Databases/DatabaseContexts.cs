@@ -79,10 +79,7 @@ public sealed class DatabaseContexts(
         options.ConfigureWarnings(warnings => warnings.Ignore(
             Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId
                 .PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning));
-        options.AddInterceptors(
-            secrets,
-            audit,
-            new TenantConnectionInterceptor(contextTenant));
+        options.AddInterceptors(secrets, audit);
         return new IdaDbContext(
             options.Options,
             contextTenant,
