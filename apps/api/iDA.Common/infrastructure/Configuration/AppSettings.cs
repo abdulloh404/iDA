@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
+using System.Text;
 
 namespace Ida.Infrastructure.Configuration;
 
@@ -17,6 +18,9 @@ public static class AppSettings
         };
         foreach (var source in builder.Sources.OfType<JsonConfigurationSource>().Where(source => Path.GetFileName(source.Path)?.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) == true).ToArray())
             builder.Sources.Remove(source);
+        var startSettings = Environment.GetEnvironmentVariable("IDA_START_SETTINGS");
+        if (!string.IsNullOrWhiteSpace(startSettings))
+            return builder.AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(startSettings))).AddEnvironmentVariables();
         return builder.AddJsonFile(Path.Combine(settingsDirectory ?? SettingsDirectory(), fileName), optional: false, reloadOnChange: reloadOnChange).AddEnvironmentVariables();
     }
 

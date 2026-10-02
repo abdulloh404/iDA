@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IsPublishable>false</IsPublishable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="*.cs" />
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <ProjectReference Include="iDA.Core/api/Ida.Api.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="iDA.Tanent/api/Ida.Tenant.Api.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="IDA.Ingest-worker/Ida.Worker.Ingest.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+</Project>

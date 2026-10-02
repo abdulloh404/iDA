@@ -24,10 +24,11 @@
       "outputs": [
         "{projectRoot}/iDA.Core/api/bin/Release/net9.0",
         "{projectRoot}/IDA.Ingest-worker/bin/Release/net9.0",
-        "{projectRoot}/iDA.Tanent/api/bin/Release/net9.0"
+        "{projectRoot}/iDA.Tanent/api/bin/Release/net9.0",
+        "{projectRoot}/bin/Release/net9.0"
       ],
       "options": {
-        "command": "dotnet build iDA.sln --configuration Release",
+        "command": "dotnet build Ida.Start.csproj --configuration Release",
         "cwd": "apps/api"
       }
     },
