@@ -35,8 +35,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Common.Infrastructure",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ida.Common.Api", "iDA.Common\api\Ida.Common.Api.csproj", "{9B437433-7BA9-46BE-B458-E5EA6BD479C8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "iDA.Start", "Ida.Start.csproj", "{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,18 +45,6 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|x64.Build.0 = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Debug|x86.Build.0 = Debug|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|x64.ActiveCfg = Release|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|x64.Build.0 = Release|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|x86.ActiveCfg = Release|Any CPU
-		{DB5E4067-8F73-4B76-AC90-58A7F9D49DA5}.Release|x86.Build.0 = Release|Any CPU
 		{E0FC1E76-CB3D-4BC4-B7B3-23514F7A62B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E0FC1E76-CB3D-4BC4-B7B3-23514F7A62B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E0FC1E76-CB3D-4BC4-B7B3-23514F7A62B0}.Debug|x64.ActiveCfg = Debug|Any CPU
