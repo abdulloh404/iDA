@@ -8,8 +8,8 @@ internal static class RootEnvironment
     public static string ApiDirectory()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
-            if (File.Exists(Path.Combine(directory.FullName, "Ida.Start.csproj"))) return directory.FullName;
-        throw new InvalidOperationException("Cannot locate apps/api/Ida.Start.csproj. Run the launcher from the source checkout.");
+            if (File.Exists(Path.Combine(directory.FullName, "Ida.Api.csproj"))) return directory.FullName;
+        throw new InvalidOperationException("Cannot locate apps/api/Ida.Api.csproj. Run the launcher from the source checkout.");
     }
 
     public static IReadOnlyDictionary<string, string> Read(string path)

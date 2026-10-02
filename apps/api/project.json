@@ -28,7 +28,7 @@
         "{projectRoot}/bin/Release/net9.0"
       ],
       "options": {
-        "command": "dotnet build Ida.Start.csproj --configuration Release",
+        "command": "dotnet build Ida.Api.csproj --configuration Release",
         "cwd": "apps/api"
       }
     },
