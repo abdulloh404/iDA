@@ -20,6 +20,8 @@ public sealed class DatabaseConnectionFactory(IConfiguration configuration) : ID
     {
         Validate(endpoint);
         var connectionName = endpoint.ConnectionKey + (administrator ? "Migration" : "");
+        var tenantConnectionName = administrator ? "TenantMigration" : "Tenant";
+        if (endpoint.Kind == "bu" && !string.IsNullOrWhiteSpace(configuration.GetConnectionString(tenantConnectionName))) connectionName = tenantConnectionName;
         var explicitValue = configuration.GetConnectionString(connectionName);
         if (string.IsNullOrWhiteSpace(explicitValue) && endpoint.Kind == "core")
             explicitValue = configuration.GetConnectionString(administrator ? "PostgresMigration" : "Postgres");

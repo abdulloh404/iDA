@@ -1,27 +1,29 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolveApiEnvironment } from './start-api.mjs';
 
 const task = process.argv[2];
 if (!['migrate', 'seed'].includes(task)) {
   throw new Error('Usage: node tools/run-database-task.mjs <migrate|seed>');
 }
 
-const environment = resolveApiEnvironment(process.env, 'Local');
+const environmentValue = process.env.DOTNET_ENVIRONMENT ?? process.env.ASPNETCORE_ENVIRONMENT ?? 'Local';
+const environment = ['Production', 'Development', 'Local'].find(name => name.toLowerCase() === String(environmentValue).toLowerCase());
+if (!environment) throw new Error(`Unsupported API environment "${environmentValue}". Use Production, Development, or Local.`);
 const apiRoot = new URL('../apps/api/', import.meta.url);
 const services = {
   core: { directory: 'iDA.Core/api', assembly: 'iDA.Core.Api.dll' },
   tenant: { directory: 'iDA.Tanent/api', assembly: 'iDA.Tenant.Api.dll' },
 };
 
-function serviceEnvironment(endpoint) {
+function serviceEnvironment(service, endpoint) {
   const env = { ...process.env };
-  const selectedKeys = new Set(['DOTNET_ENVIRONMENT', 'ASPNETCORE_ENVIRONMENT', 'API__MODE', 'API__BUID', 'BU_ID', 'IDA_DATABASE_ENDPOINT']);
+  const selectedKeys = new Set(['DOTNET_ENVIRONMENT', 'ASPNETCORE_ENVIRONMENT', 'API__MODE', 'API__BUID', 'BU_ID', 'IDA_DATABASE_ENDPOINT', 'IDA_SETTINGS_DIRECTORY']);
   for (const key of Object.keys(env)) {
     if (selectedKeys.has(key.toUpperCase())) delete env[key];
   }
   env.DOTNET_ENVIRONMENT = environment;
   env.ASPNETCORE_ENVIRONMENT = environment;
+  env.IDA_SETTINGS_DIRECTORY = fileURLToPath(new URL(`${service.directory}/`, apiRoot));
   env.Api__Mode = endpoint ? 'Tenant' : 'Core';
   if (endpoint) {
     env.Api__BuId = endpoint.connectionKey;
@@ -35,7 +37,7 @@ function run(service, command, endpoint, capture = false) {
   return new Promise((resolve, reject) => {
     const child = spawn('dotnet', [`bin/Release/net9.0/${service.assembly}`, command], {
       cwd: fileURLToPath(new URL(`${service.directory}/`, apiRoot)),
-      env: serviceEnvironment(endpoint),
+      env: serviceEnvironment(service, endpoint),
       stdio: ['inherit', capture ? 'pipe' : 'inherit', 'inherit'],
     });
     let output = '';

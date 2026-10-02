@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { Session } from './session';
 export interface AuthState {
     session: Session | null;
+    isSwitchingHospital: boolean;
     signIn: (username: string, password: string) => Promise<void>;
     signOut: () => void;
     changeHospital: (hospitalId: string) => Promise<void>;

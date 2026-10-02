@@ -11,11 +11,7 @@ public static class ApiSetup
     public static void ConfigureIdaApi(this WebApplicationBuilder builder, string[] args, DatabaseRuntime runtime)
     {
         if (runtime != DatabaseRuntime.Tenant) throw new ArgumentOutOfRangeException(nameof(runtime));
-        builder.ConfigureCommonApi(args, configuration =>
-        {
-            var buId = (configuration["Api:BuId"] ?? configuration["BU_ID"])?.Trim().ToUpperInvariant();
-            return $"Api:Tenants:{buId}";
-        });
+        builder.ConfigureCommonApi(args, "Api");
     }
 
     public static DatabaseRuntime ReadApiRuntime(IConfiguration configuration, DatabaseRuntime expected)
@@ -38,9 +34,7 @@ public static class ApiSetup
     {
         if (runtime != DatabaseRuntime.Tenant) throw new ArgumentOutOfRangeException(nameof(runtime));
         var registry = app.Services.GetRequiredService<DatabaseRegistry>();
-        var serviceSection = $"Api:Tenants:{registry.FixedBranch.ConnectionKey}";
-        var pathBase = app.Configuration["Api:PathBase"] ?? app.Configuration[$"{serviceSection}:PathBase"] ?? app.Configuration["API_PATH_BASE"]
-            ?? app.Configuration[$"{registry.FixedBranch.ConnectionKey}_API_PATH"] ?? "/" + registry.FixedBranch.ConnectionKey.ToLowerInvariant();
+        var pathBase = app.Configuration["Api:PathBase"] ?? app.Configuration["API_PATH_BASE"] ?? "/" + registry.FixedBranch.ConnectionKey.ToLowerInvariant();
         app.UseCommonApi(pathBase, tenant => tenant.Use(async (context, next) =>
         {
             if (context.User.Identity?.IsAuthenticated == true)

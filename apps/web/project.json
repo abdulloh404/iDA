@@ -27,8 +27,10 @@
         "production",
         "^production",
         "{workspaceRoot}/tsconfig.base.json",
-        "{workspaceRoot}/tools/start-api.mjs",
-        "{workspaceRoot}/tools/start-web.mjs"
+        "{workspaceRoot}/tools/start-web.mjs",
+        {
+          "runtime": "node --input-type=module -e \"import { readWebSettings } from './tools/start-web.mjs'; console.log(JSON.stringify(readWebSettings()));\""
+        }
       ],
       "options": {
         "command": "npm run build --",

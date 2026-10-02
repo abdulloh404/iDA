@@ -16,7 +16,7 @@
       "inputs": [
         "production",
         "^production",
-        "{workspaceRoot}/apps/api/appsettings*.json"
+        "{projectRoot}/appsettings*.json"
       ],
       "outputs": [
         "{projectRoot}/bin/Release/net9.0"

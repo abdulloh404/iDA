@@ -16,6 +16,7 @@
 }
 
 .ida-shell__main {
+  position: relative;
   flex: 1;
   padding: var(--ida-space-8);
 }
@@ -29,6 +30,39 @@
 .ida-shell__content {
   max-width: var(--ida-content-max-width);
   margin: 0 auto;
+}
+
+.ida-hospital-loading {
+  position: absolute;
+  inset: 0;
+  z-index: var(--ida-z-overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: min(25vh, 200px) var(--ida-space-4) var(--ida-space-4);
+  background: color-mix(in srgb, var(--ida-color-bg) 85%, transparent);
+}
+
+.ida-hospital-loading__status {
+  position: sticky;
+  top: calc(var(--ida-topbar-height) + var(--ida-space-8));
+  display: flex;
+  align-items: center;
+  gap: var(--ida-space-3);
+  padding: var(--ida-space-5) var(--ida-space-6);
+  border: 1px solid var(--ida-color-border);
+  border-radius: var(--ida-radius-lg);
+  background: var(--ida-color-surface);
+  box-shadow: var(--ida-shadow-md);
+  color: var(--ida-color-primary-text);
+  font: var(--ida-text-body);
+}
+
+.ida-hospital-loading__status .ida-spinner {
+  width: 28px;
+  height: 28px;
+  border-width: 3px;
+  flex-shrink: 0;
 }
 
 

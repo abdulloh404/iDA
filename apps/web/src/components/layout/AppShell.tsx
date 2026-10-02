@@ -1,27 +1,66 @@
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../features/auth/authState';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { Select } from '../form/Select';
 import { Icon } from '../Icon';
 import { ErrorBoundary } from '../feedback/ErrorBoundary';
+import { useToast } from '../feedback/toastContext';
 import { Sidebar } from './Sidebar';
 import { UserMenu } from './UserMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { LanguageToggle } from './LanguageToggle';
 import { useT } from '../../i18n/useT';
 import { useDocumentTitle } from '../../app/useDocumentTitle';
+const MIN_HOSPITAL_LOADING_MS = 400;
 export function AppShell() {
-    const { session, signOut, changeHospital } = useAuth();
+    const { session, signOut, changeHospital, isSwitchingHospital } = useAuth();
+    const queryClient = useQueryClient();
+    const toast = useToast();
     const location = useLocation();
     const t = useT();
     useDocumentTitle();
     const [collapsed, setCollapsed] = useState(false);
+    const [hospitalLoadingSince, setHospitalLoadingSince] = useState<number | null>(null);
+    const hospitalLoading = hospitalLoadingSince !== null || isSwitchingHospital;
     const [drawer, setDrawer] = useState({ open: false, at: location.pathname });
     const drawerOpen = drawer.open && drawer.at === location.pathname;
     const setDrawerOpen = (open: boolean) => setDrawer({ open, at: location.pathname });
     const railWidth = useMediaQuery('(min-width: 768px) and (max-width: 1023px)');
     const rail = (collapsed || railWidth) && !drawerOpen;
+    useEffect(() => {
+        if (hospitalLoadingSince === null || isSwitchingHospital)
+            return;
+        let timeout: number | undefined;
+        const finishWhenIdle = () => {
+            window.clearTimeout(timeout);
+            if (queryClient.isFetching({ type: 'active' }) > 0)
+                return;
+            timeout = window.setTimeout(() => {
+                if (queryClient.isFetching({ type: 'active' }) === 0)
+                    setHospitalLoadingSince(null);
+            }, Math.max(50, MIN_HOSPITAL_LOADING_MS - (performance.now() - hospitalLoadingSince)));
+        };
+        const unsubscribe = queryClient.getQueryCache().subscribe(finishWhenIdle);
+        finishWhenIdle();
+        return () => {
+            unsubscribe();
+            window.clearTimeout(timeout);
+        };
+    }, [hospitalLoadingSince, isSwitchingHospital, queryClient]);
+    async function switchHospital(hospitalId: string) {
+        if (hospitalLoading || hospitalId === session?.hospitalId)
+            return;
+        setHospitalLoadingSince(performance.now());
+        try {
+            await changeHospital(hospitalId);
+        }
+        catch (error) {
+            setHospitalLoadingSince(null);
+            toast.error(error instanceof Error ? error.message : t('shell.switchHospitalFailed'));
+        }
+    }
     useEffect(() => {
         if (!drawerOpen)
             return;
@@ -75,8 +114,8 @@ export function AppShell() {
 
             
             <div className="ida-hospital-switcher">
-              <Icon name="hospital" size={18} className="ida-hospital-switcher__icon"/>
-              <Select id="hospital-switcher" ariaLabel={t('shell.hospital')} className="ida-select-trigger--bare" value={session?.hospitalId ?? ''} onChange={(id) => void changeHospital(id)} options={(session?.hospitals ?? []).map((h) => ({
+              {hospitalLoading ? <span className="ida-spinner" aria-hidden="true"/> : <Icon name="hospital" size={18} className="ida-hospital-switcher__icon"/>}
+              <Select id="hospital-switcher" ariaLabel={t('shell.hospital')} className="ida-select-trigger--bare" value={session?.hospitalId ?? ''} disabled={hospitalLoading} onChange={(id) => void switchHospital(id)} options={(session?.hospitals ?? []).map((h) => ({
             value: h.hospitalId,
             label: h.hospitalName,
         }))}/>
@@ -94,12 +133,18 @@ export function AppShell() {
           </header>
 
           <main className="ida-shell__main" id="main">
-            <div className="ida-shell__content">
+            <div className="ida-shell__content" inert={hospitalLoading} aria-busy={hospitalLoading}>
               
-              <ErrorBoundary key={`${session?.hospitalId}:${session?.tenantApiPath}`} resetKey={location.pathname}>
+              <ErrorBoundary key={session?.hospitalId} resetKey={location.pathname}>
                 <Outlet />
               </ErrorBoundary>
             </div>
+            {hospitalLoading && (<div className="ida-hospital-loading" role="status" aria-live="polite">
+              <div className="ida-hospital-loading__status">
+                <span className="ida-spinner" aria-hidden="true"/>
+                <span>{t('shell.loadingHospital')}</span>
+              </div>
+            </div>)}
           </main>
         </div>
       </div>

@@ -8,7 +8,7 @@ import type { AuthState } from './authState';
 const REFRESH_EVERY_MS = 60000;
 function restoreSession(): Session | null {
     const stored = readStoredSession();
-    setAuthToken(stored?.token ?? null, stored?.tenantApiPath ?? null);
+    setAuthToken(stored?.token ?? null, stored?.hospitalId ?? null);
     return stored;
 }
 export function AuthProvider({ children, onSessionChange, }: {
@@ -16,10 +16,11 @@ export function AuthProvider({ children, onSessionChange, }: {
     onSessionChange?: () => void;
 }) {
     const [session, setSession] = useState<Session | null>(restoreSession);
+    const [isSwitchingHospital, setIsSwitchingHospital] = useState(false);
     const lastRefresh = useRef(0);
     const apply = useCallback((next: Session | null) => {
         lastRefresh.current = Date.now();
-        setAuthToken(next?.token ?? null, next?.tenantApiPath ?? null);
+        setAuthToken(next?.token ?? null, next?.hospitalId ?? null);
         writeStoredSession(next);
         setSession(next);
         onSessionChange?.();
@@ -29,13 +30,12 @@ export function AuthProvider({ children, onSessionChange, }: {
     }, [apply]);
     const userId = session?.user.id;
     const hospitalId = session?.hospitalId;
-    const tenantApiPath = session?.tenantApiPath;
     useEffect(() => {
         if (!userId)
             return;
         let cancelled = false;
         const refresh = async () => {
-            if (tenantApiPath && Date.now() - lastRefresh.current < REFRESH_EVERY_MS)
+            if (hospitalId && Date.now() - lastRefresh.current < REFRESH_EVERY_MS)
                 return;
             lastRefresh.current = Date.now();
             const requestToken = getAuthToken();
@@ -43,17 +43,17 @@ export function AuthProvider({ children, onSessionChange, }: {
                 const next = await refreshSession();
                 if (cancelled || requestToken !== getAuthToken())
                     return;
-                if (next.hospitalId !== hospitalId || next.tenantApiPath !== tenantApiPath) {
+                if (next.hospitalId !== hospitalId) {
                     apply(next);
                 }
                 else {
-                    setAuthToken(next.token, next.tenantApiPath);
+                    setAuthToken(next.token, next.hospitalId);
                     writeStoredSession(next);
                     setSession(next);
                 }
             }
             catch {
-                if (!cancelled && requestToken === getAuthToken() && !tenantApiPath)
+                if (!cancelled && requestToken === getAuthToken() && !hospitalId)
                     apply(null);
             }
         };
@@ -64,16 +64,27 @@ export function AuthProvider({ children, onSessionChange, }: {
             cancelled = true;
             window.removeEventListener('focus', onFocus);
         };
-    }, [userId, hospitalId, tenantApiPath, apply]);
+    }, [userId, hospitalId, apply]);
     const value = useMemo<AuthState>(() => {
         const granted = new Set(session?.permissions ?? []);
         return {
             session,
+            isSwitchingHospital,
             signIn: async (username, password) => apply(await loginRequest(username, password)),
             signOut: () => apply(null),
-            changeHospital: async (hospitalId) => apply(await switchHospitalRequest(hospitalId)),
+            changeHospital: async (hospitalId) => {
+                if (isSwitchingHospital || hospitalId === session?.hospitalId)
+                    return;
+                setIsSwitchingHospital(true);
+                try {
+                    apply(await switchHospitalRequest(hospitalId));
+                }
+                finally {
+                    setIsSwitchingHospital(false);
+                }
+            },
             can: (permission) => granted.has(permission),
         };
-    }, [session, apply]);
-    return <AuthContext.Provider value={value}>{session && !session.tenantApiPath ? null : children}</AuthContext.Provider>;
+    }, [session, isSwitchingHospital, apply]);
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

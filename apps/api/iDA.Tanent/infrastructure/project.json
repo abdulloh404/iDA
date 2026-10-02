@@ -16,8 +16,7 @@
       "executor": "nx:run-commands",
       "inputs": [
         "production",
-        "^production",
-        "{workspaceRoot}/apps/api/appsettings*.json"
+        "^production"
       ],
       "outputs": [
         "{projectRoot}/bin/Release/net9.0"

@@ -2,22 +2,18 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { apiProxyPattern, apiRouting, readApiSettings } from '../../tools/start-api.mjs';
-import { readWebSettings } from '../../tools/start-web.mjs';
+import { readWebSettings, webApiProxyPattern } from '../../tools/start-web.mjs';
 
-export default defineConfig(({ command, mode }) => {
-  const { env, environment, hostname, port, apiUrl } = readWebSettings(mode === 'production' ? 'Production' : 'Local');
-  const apiEnv = { ...env, DOTNET_ENVIRONMENT: environment, ASPNETCORE_ENVIRONMENT: environment };
-  const routing = command === 'serve'
-    ? apiRouting(apiEnv, readApiSettings(apiEnv))
-    : undefined;
-  const proxy = routing ? {
-    [apiProxyPattern(routing)]: { target: apiUrl.origin, changeOrigin: true },
-  } : undefined;
+export default defineConfig(({ mode }) => {
+  const { hostname, port, routes } = readWebSettings(mode === 'production' ? 'Production' : 'Local');
+  const proxy = Object.fromEntries(routes.map((route) => [webApiProxyPattern(route.prefix), { target: route.baseUrl.origin, changeOrigin: true }]));
 
   return {
     root: import.meta.dirname,
     envDir: false,
+    define: {
+      'import.meta.env.API_BASE_URLS': JSON.stringify(Object.fromEntries(routes.map((route) => [route.key, route.prefix]))),
+    },
     cacheDir: 'node_modules/.vite',
     plugins: [tailwindcss(), react()],
     resolve: {

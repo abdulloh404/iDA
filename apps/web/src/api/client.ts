@@ -1,4 +1,4 @@
-export const API_BASE = (import.meta.env.API_URL ?? '').replace(/\/+$/, '');
+const API_BASE_URLS = import.meta.env.API_BASE_URLS as Readonly<Record<string, string>>;
 export interface FieldError {
     field: string;
     code: string;
@@ -28,11 +28,11 @@ function readFields(details: unknown): FieldError[] {
     return Array.isArray(fields) ? (fields as FieldError[]) : [];
 }
 let authToken: string | null = null;
-let activeTenantApiPath: string | null = null;
+let activeHospitalId: string | null = null;
 let onUnauthorizedCallback: (() => void) | null = null;
-export function setAuthToken(token: string | null, tenantApiPath: string | null = null): void {
+export function setAuthToken(token: string | null, hospitalId: string | null = null): void {
     authToken = token;
-    activeTenantApiPath = token ? tenantApiPath : null;
+    activeHospitalId = token ? hospitalId : null;
 }
 export function getAuthToken(): string | null {
     return authToken;
@@ -58,14 +58,24 @@ export interface RequestInit_ {
     params?: Record<string, unknown>;
     signal?: AbortSignal;
 }
+function apiPath(key: string, path: string): string {
+    const base = API_BASE_URLS?.[key];
+    if (!base)
+        throw new ApiError(500, 'api_base_url_not_configured', `ยังไม่ได้กำหนด ${key}_API_BASE_URL`);
+    return `${base.replace(/\/+$/, '')}${path}`;
+}
 function tenantPath(path: string): string {
-    if (!activeTenantApiPath)
+    if (!activeHospitalId)
         throw new ApiError(401, 'tenant_not_selected', 'กรุณาเลือกโรงพยาบาลก่อนเรียกใช้งานข้อมูล');
-    return `${activeTenantApiPath}${path}`;
+    const match = /^(?:BU|PT)(\d+)$/i.exec(activeHospitalId);
+    const hospitalNumber = match?.[1].replace(/^0+/, '');
+    if (!hospitalNumber)
+        throw new ApiError(400, 'tenant_api_not_configured', `ไม่พบ API สำหรับโรงพยาบาล ${activeHospitalId}`);
+    return apiPath(`PT${hospitalNumber}`, path);
 }
 async function request(path: string, init: RequestInit_ = {}): Promise<Response> {
     const requestToken = authToken;
-    const res = await fetch(`${API_BASE}${path}${qs(init.params)}`, {
+    const res = await fetch(`${path}${qs(init.params)}`, {
         method: init.method ?? 'GET',
         headers: {
             'Content-Type': 'application/json',
@@ -114,7 +124,7 @@ async function requestBlob(path: string, init: RequestInit_ = {}): Promise<{
         fileName: match ? decodeURIComponent(match[1]) : 'export.xlsx',
     };
 }
-export const coreApi = async <T>(path: string, init: RequestInit_ = {}) => requestJson<T>(`/core${path}`, init);
+export const coreApi = async <T>(path: string, init: RequestInit_ = {}) => requestJson<T>(apiPath('CORE', path), init);
 export const tenantApi = async <T>(path: string, init: RequestInit_ = {}) => requestJson<T>(tenantPath(path), init);
-export const coreApiBlob = async (path: string, init: RequestInit_ = {}) => requestBlob(`/core${path}`, init);
+export const coreApiBlob = async (path: string, init: RequestInit_ = {}) => requestBlob(apiPath('CORE', path), init);
 export const tenantApiBlob = async (path: string, init: RequestInit_ = {}) => requestBlob(tenantPath(path), init);

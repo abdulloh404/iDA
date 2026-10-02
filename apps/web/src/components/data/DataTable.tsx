@@ -5,6 +5,7 @@ import type { IconName } from '../Icon';
 import { amountClass, formatTHB } from '../../styles/tokens';
 import { ApiErrorAlert } from '../feedback/ApiErrorAlert';
 import { StatusBadge } from './StatusBadge';
+import { useAuth } from '../../features/auth/authState';
 export interface ColumnDef<TRow> {
     key: string;
     header: string;
@@ -54,11 +55,13 @@ interface DataTableProps<TRow> {
     empty: EmptyStateProps;
 }
 export function DataTable<TRow>({ caption, selection, columns, rows, rowKey, loading = false, error, sort, onSortChange, rowActions = [], empty, }: DataTableProps<TRow>) {
+    const { isSwitchingHospital } = useAuth();
     const actions = rowActions.filter((a) => !a.hidden);
-    if (error)
+    if (error && !isSwitchingHospital)
         return <ApiErrorAlert error={error}/>;
-    if (loading) {
-        return (<div className="ida-table-wrap">
+    if (loading || isSwitchingHospital) {
+        return (<div className="ida-table-wrap" aria-busy="true">
+        <span className="ida-visually-hidden" role="status">{isSwitchingHospital ? 'กำลังเปลี่ยนสาขา…' : 'กำลังโหลดข้อมูล…'}</span>
         <div className="ida-table-scroll">
           <table className="ida-table">
             <caption className="ida-visually-hidden">{caption} (กำลังโหลด)</caption>
