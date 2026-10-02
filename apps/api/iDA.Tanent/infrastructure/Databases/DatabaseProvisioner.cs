@@ -19,14 +19,12 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
             registry.CoreSchemaName,
             registry.ConnectionString(endpoint, administrator: true));
 
-        await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct,
-            model => LegacyCoreLookupCleanup.ApplyAsync(model, connection, transaction, endpoint, registry.CoreSchemaName, ct));
+        await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
         var ingest = new IngestSchemaProvisioner();
         await TenantSecurityProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
         await ingest.ApplyBranchAsync(connection, transaction, endpoint, ct);
         await TenantSecurityProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
 
-        await ProvisioningSql.ExecuteAsync(connection, transaction, "DROP SCHEMA IF EXISTS public RESTRICT;", ct);
         await transaction.CommitAsync(ct);
     }
 

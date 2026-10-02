@@ -13,54 +13,59 @@ const environmentValue = process.env.DOTNET_ENVIRONMENT ?? process.env.ASPNETCOR
 const environment = ['Production', 'Development', 'Local'].find(name => name.toLowerCase() === String(environmentValue).toLowerCase());
 if (!environment) throw new Error(`Unsupported API environment "${environmentValue}". Use Production, Development, or Local.`);
 const apiRoot = new URL('../apps/api/', import.meta.url);
-const settings = task === 'migrate' ? { ...parseEnv(readFileSync(new URL('.env', apiRoot), 'utf8')), ...process.env } : null;
+const settings = { ...parseEnv(readFileSync(new URL('.env', apiRoot), 'utf8')), ...process.env };
+const buKeys = [...new Set(Object.keys(settings).map(key => /^(BU[0-9]+)_/.exec(key)?.[1]).filter(Boolean))]
+  .sort((left, right) => left.localeCompare(right, 'en', { numeric: true }));
+const tenants = Object.fromEntries(buKeys.map(key => [key, {
+  HospitalId: settings[`${key}_HOSPITAL_ID`] ?? key,
+}]));
 const services = {
   core: { directory: 'iDA.Core/api', assembly: 'iDA.Core.Api.dll' },
   tenant: { directory: 'iDA.Tanent/api', assembly: 'iDA.Tenant.Api.dll' },
 };
 let interruptedSignal;
 
-function serviceEnvironment(service, endpoint) {
+function serviceEnvironment(key) {
   const env = { ...process.env };
-  const selectedKeys = new Set(['DOTNET_ENVIRONMENT', 'ASPNETCORE_ENVIRONMENT', 'API__MODE', 'API__BUID', 'BU_ID', 'IDA_DATABASE_ENDPOINT', 'IDA_SETTINGS_DIRECTORY']);
+  const selectedKeys = new Set(['DOTNET_ENVIRONMENT', 'ASPNETCORE_ENVIRONMENT', 'BU_ID', 'IDA_SETTINGS_DIRECTORY']);
   for (const key of Object.keys(env)) {
-    if (selectedKeys.has(key.toUpperCase()) || (settings && /^(CORE_|BU[0-9]+_|CONNECTIONSTRINGS__|API__|IDA_START_SETTINGS$)/i.test(key))) delete env[key];
+    if (selectedKeys.has(key.toUpperCase()) || /^(CORE_|BU[0-9]+_|CONNECTIONSTRINGS__|API__|IDA_START_SETTINGS$)/i.test(key)) delete env[key];
   }
   env.DOTNET_ENVIRONMENT = environment;
   env.ASPNETCORE_ENVIRONMENT = environment;
-  env.IDA_SETTINGS_DIRECTORY = fileURLToPath(new URL(`${service.directory}/`, apiRoot));
-  env.Api__Mode = endpoint ? 'Tenant' : 'Core';
-  if (endpoint) {
-    env.Api__BuId = endpoint.connectionKey;
-    env.BU_ID = endpoint.connectionKey;
-    env.IDA_DATABASE_ENDPOINT = JSON.stringify(endpoint);
-  }
-  if (settings) {
-    const key = endpoint?.connectionKey.toUpperCase() ?? 'CORE';
-    for (const name of [`${key}_CONNECTION`, `${key}_MIGRATION_CONNECTION`]) {
-      if (!settings[name]?.trim()) throw new Error(`Set ${name} in apps/api/.env.`);
-    }
-    const connectionName = endpoint ? 'Tenant' : 'Core';
-    env.IDA_START_SETTINGS = JSON.stringify({
-      Api: { Mode: endpoint ? 'Tenant' : 'Core', BuId: endpoint?.connectionKey },
-      ConnectionStrings: {
-        [connectionName]: settings[`${key}_CONNECTION`],
-        [`${connectionName}Migration`]: settings[`${key}_MIGRATION_CONNECTION`],
+  const isCore = key === 'CORE';
+  const connectionName = isCore ? 'Core' : 'Tenant';
+  if (!isCore) env.BU_ID = key;
+  env.IDA_START_SETTINGS = JSON.stringify({
+    Api: { Mode: isCore ? 'Core' : 'Tenant', BuId: isCore ? undefined : key, Tenants: isCore ? tenants : undefined },
+    ConnectionStrings: {
+      [connectionName]: settings[`${key}_CONNECTION`],
+      [`${connectionName}Migration`]: settings[`${key}_MIGRATION_CONNECTION`],
+    },
+    CORE_DB_SCHEMA: settings.CORE_DB_SCHEMA,
+    [`${key}_DB_SCHEMA`]: settings[`${key}_DB_SCHEMA`],
+    [`${key}_DB_PASSWORD`]: settings[`${key}_DB_PASSWORD`],
+    [`${key}_DB_ADMIN_PASSWORD`]: settings[`${key}_DB_ADMIN_PASSWORD`],
+    ...(!isCore ? { [`${key}_HOSPITAL_ID`]: tenants[key].HospitalId } : {}),
+    ...(task === 'seed' && isCore ? {
+      Jwt: {
+        Key: settings.JWT_KEY,
+        Issuer: settings.JWT_ISSUER,
+        Audience: settings.JWT_AUDIENCE,
+        LifetimeHours: settings.JWT_LIFETIME_HOURS ?? '8',
       },
-      CORE_DB_SCHEMA: settings.CORE_DB_SCHEMA,
-      CORE_DB_PASSWORD: endpoint ? undefined : settings.CORE_DB_PASSWORD,
-      CORE_DB_ADMIN_PASSWORD: endpoint ? undefined : settings.CORE_DB_ADMIN_PASSWORD,
-      ...(endpoint ? {
-        [endpoint.passwordEnvironment]: settings[endpoint.passwordEnvironment],
-        [`${key}_DB_ADMIN_PASSWORD`]: settings[`${key}_DB_ADMIN_PASSWORD`],
-      } : {}),
-    });
-    delete env.IDA_SETTINGS_DIRECTORY;
-  }
+      Security: { DataProtectionKey: settings.SECURITY_DATA_PROTECTION_KEY, HashSalt: settings.SECURITY_HASH_SALT },
+      Seed: {
+        AdminUsername: settings.SEED_ADMIN_USERNAME ?? settings.Seed__AdminUsername,
+        AdminPassword: settings.SEED_ADMIN_PASSWORD ?? settings.Seed__AdminPassword,
+      },
+      Logging: { LogLevel: { Default: settings.LOG_LEVEL_DEFAULT ?? 'Information', 'Microsoft.AspNetCore': settings.LOG_LEVEL_MICROSOFT_ASPNETCORE ?? 'Warning' } },
+    } : {}),
+  });
   return env;
 }
 
-function run(service, command, endpoint, capture = false) {
+function run(service, command, key = 'CORE', capture = false) {
   return new Promise((resolve, reject) => {
     if (interruptedSignal) {
       reject(new Error(`Database task cancelled (${interruptedSignal}).`));
@@ -68,7 +73,7 @@ function run(service, command, endpoint, capture = false) {
     }
     const child = spawn('dotnet', [`bin/Release/net9.0/${service.assembly}`, command], {
       cwd: fileURLToPath(new URL(`${service.directory}/`, apiRoot)),
-      env: serviceEnvironment(service, endpoint),
+      env: serviceEnvironment(key),
       stdio: ['inherit', capture ? 'pipe' : 'inherit', 'inherit'],
     });
     const signalHandlers = new Map();
@@ -94,40 +99,56 @@ function run(service, command, endpoint, capture = false) {
   });
 }
 
-async function branches() {
-  const output = await run(services.core, '--list-tenant-databases', undefined, true);
-  let endpoints;
+async function describeDatabase(key) {
+  const output = await run(key === 'CORE' ? services.core : services.tenant, '--describe-database', key, true);
+  let endpoint;
   try {
-    endpoints = JSON.parse(output);
+    endpoint = JSON.parse(output);
   } catch {
-    throw new Error('Core returned an invalid database registry response.');
+    throw new Error(`${key} returned invalid database configuration metadata.`);
   }
-  if (!Array.isArray(endpoints) || endpoints.some(endpoint => !endpoint || endpoint.kind !== 'bu' || typeof endpoint.connectionKey !== 'string' || !/^BU[0-9]+$/i.test(endpoint.connectionKey) || endpoint.connectionKey.length > 40)) {
-    throw new Error('Core returned an invalid BU database registry entry.');
+  if (!endpoint || endpoint.connectionKey !== key || endpoint.kind !== (key === 'CORE' ? 'core' : 'bu') || typeof endpoint.host !== 'string' || !Number.isInteger(endpoint.port) || typeof endpoint.databaseName !== 'string' || endpoint.schemaName !== settings[`${key}_DB_SCHEMA`]) {
+    throw new Error(`${key} returned inconsistent database configuration metadata.`);
   }
-  if (new Set(endpoints.map(endpoint => endpoint.connectionKey.toUpperCase())).size !== endpoints.length) {
-    throw new Error('Core returned duplicate BU connection keys.');
-  }
-  return endpoints.sort((left, right) => left.connectionKey.localeCompare(right.connectionKey, 'en', { numeric: true }));
+  return endpoint;
 }
 
 const completed = [];
-let stage = 'Core';
+let stage = 'Validating apps/api/.env';
 try {
+  for (const key of ['CORE', ...buKeys]) {
+    for (const suffix of ['CONNECTION', 'MIGRATION_CONNECTION', 'DB_SCHEMA']) {
+      if (!settings[`${key}_${suffix}`]?.trim()) throw new Error(`Set ${key}_${suffix} in apps/api/.env.`);
+    }
+  }
+  const databases = new Map();
+  const hospitals = new Set();
+  for (const key of ['CORE', ...buKeys]) {
+    stage = `Validating ${key} configuration`;
+    const endpoint = await describeDatabase(key);
+    const database = JSON.stringify([endpoint.host.toLowerCase(), endpoint.port, endpoint.databaseName]);
+    if (databases.has(database)) throw new Error(`${key} and ${databases.get(database)} must use separate databases.`);
+    databases.set(database, key);
+    if (key !== 'CORE') {
+      if (endpoint.hospitalId !== tenants[key].HospitalId || hospitals.has(endpoint.hospitalId)) throw new Error(`${key} must use a unique hospital ID matching its environment configuration.`);
+      hospitals.add(endpoint.hospitalId);
+      tenants[key].DatabaseName = endpoint.databaseName;
+      tenants[key].Host = endpoint.host;
+    }
+  }
+  stage = 'Core';
   process.stdout.write(`${task === 'migrate' ? 'Migrating' : 'Seeding'} Core\n`);
   await run(services.core, task === 'migrate' ? '--migrate-databases' : '--seed');
   completed.push('Core');
-  stage = 'Reading registered BU databases from Core';
-  const endpoints = await branches();
-  for (const endpoint of endpoints) {
-    stage = endpoint.connectionKey;
-    process.stdout.write(`${task === 'migrate' ? 'Migrating' : 'Verifying security for'} ${endpoint.connectionKey}\n`);
-    await run(services.tenant, task === 'migrate' ? '--migrate-databases' : '--verify-security', endpoint);
-    completed.push(endpoint.connectionKey);
+  for (const key of buKeys) {
+    stage = key;
+    process.stdout.write(`${task === 'migrate' ? 'Migrating' : 'Verifying security for'} ${key}\n`);
+    await run(services.tenant, task === 'migrate' ? '--migrate-databases' : '--verify-security', key);
+    completed.push(key);
   }
   process.stdout.write(task === 'migrate'
-    ? `Core and ${endpoints.length} registered BU schemas are ready.\n`
-    : `Core seed and security checks for ${endpoints.length} registered BUs are complete.\n`);
+    ? `Core and ${buKeys.length} configured BU schemas are ready.\n`
+    : `Core seed and security checks for ${buKeys.length} configured BUs are complete.\n`);
 } catch (error) {
   process.stderr.write(`${stage}: ${error.message}\n`);
   if (task === 'migrate') {

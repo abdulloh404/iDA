@@ -15,30 +15,16 @@ public static class EfSchemaProvisioner
         NpgsqlConnection connection,
         NpgsqlTransaction transaction,
         DatabaseEndpoint endpoint,
-        CancellationToken ct,
-        Func<IModel, Task>? prepareModel = null)
+        CancellationToken ct)
     {
         await ProvisioningSql.ExecuteAsync(connection, transaction,
             $"""
             CREATE SCHEMA IF NOT EXISTS {ProvisioningSql.Identifier(endpoint.SchemaName)};
             CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA {ProvisioningSql.Identifier(endpoint.SchemaName)};
-            DO $$
-            DECLARE
-                extension_name text;
-            BEGIN
-                FOR extension_name IN
-                    SELECT e.extname FROM pg_extension e
-                    JOIN pg_namespace n ON n.oid=e.extnamespace
-                    WHERE n.nspname='public' AND e.extname='pgcrypto'
-                LOOP
-                    EXECUTE format('ALTER EXTENSION %I SET SCHEMA %I', extension_name, {ProvisioningSql.Literal(endpoint.SchemaName)});
-                END LOOP;
-            END $$;
             """,
             ct);
 
         var model = context.GetService<IDesignTimeModel>().Model;
-        if (prepareModel is not null) await prepareModel(model);
         await EnsureEnumsAsync(model, connection, transaction, endpoint.SchemaName, ct);
 
         var differ = context.GetService<IMigrationsModelDiffer>();

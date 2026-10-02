@@ -12,7 +12,6 @@ namespace Ida.Infrastructure.Persistence;
 
 public class ReferenceGuard(
     DatabaseContexts contexts,
-    DatabaseRegistry registry,
     TenantApiDirectory apis,
     ServiceApiClient client) : IReferenceGuard
 {
@@ -35,15 +34,14 @@ public class ReferenceGuard(
             ct);
         if (coreReference is not null) return coreReference;
 
-        var branches = await registry.ListBranchesAsync(ct);
         var key = contexts.Core.Model.FindEntityType(entityType)?.FindPrimaryKey()?.Properties;
         if (key is null || key.Count != 1) return null;
         var keyValue = entityType.GetProperty(key[0].Name)?.GetValue(entity);
         if (keyValue is null) return null;
         var input = new CoreReferenceRequest(entityType.Name, JsonSerializer.SerializeToElement(keyValue, key[0].ClrType));
-        foreach (var branch in branches)
+        foreach (var tenant in apis.Tenants().Keys)
         {
-            var result = await client.PostAsync<CoreReferenceResult>(apis.Url(branch), "api/internal/references", input, apis.ServiceKey(branch), ct);
+            var result = await client.PostAsync<CoreReferenceResult>(apis.Url(tenant), "api/internal/references", input, apis.ServiceKey(tenant), ct);
             if (result.Reason is not null) return result.Reason;
         }
 
@@ -119,4 +117,3 @@ public class ReferenceGuard(
         public readonly T Value = value;
     }
 }
-

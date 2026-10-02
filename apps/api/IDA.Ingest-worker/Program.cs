@@ -91,7 +91,7 @@ if (hospitalSelector.Equals("all", StringComparison.OrdinalIgnoreCase) ||
 if (command == "install")
 {
     await new DatabaseProvisioner(registry).InitializeTenantAsync(CancellationToken.None);
-    Console.WriteLine($"BU database {endpoint.ConnectionKey} initialized from the database registry.");
+    Console.WriteLine($"BU database {endpoint.ConnectionKey} initialized from configuration.");
     return;
 }
 

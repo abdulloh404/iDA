@@ -5,6 +5,7 @@ using Ida.Domain.Auth;
 using Ida.Domain.Common;
 using Ida.Domain.Core;
 using Ida.Infrastructure.Databases;
+using Ida.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ namespace Ida.Infrastructure.Persistence;
 
 public class DatabaseSeeder(
     DatabaseContexts contexts,
-    DatabaseRegistry registry,
+    TenantApiDirectory apis,
     IPasswordHasher passwords,
     IConfiguration config,
     ILogger<DatabaseSeeder> log)
@@ -42,8 +43,7 @@ public class DatabaseSeeder(
 
     private async Task SeedHospitalsAsync(CancellationToken ct)
     {
-        var endpoints = await registry.ListBranchesAsync(ct);
-        var branches = endpoints.Select(CreateHospital).ToList();
+        var branches = apis.Tenants().Select(CreateHospital).ToList();
         if (branches.Count > 0 && branches.All(branch => !branch.IsHeadOffice))
             branches[0].IsHeadOffice = true;
 
@@ -60,12 +60,12 @@ public class DatabaseSeeder(
                 continue;
             }
 
-            if (stored.TenantDbName != branch.TenantDbName)
+            if (branch.TenantDbName is not null && stored.TenantDbName != branch.TenantDbName)
             {
                 stored.TenantDbName = branch.TenantDbName;
                 changed = true;
             }
-            if (stored.TenantDbHost != branch.TenantDbHost)
+            if (branch.TenantDbHost is not null && stored.TenantDbHost != branch.TenantDbHost)
             {
                 stored.TenantDbHost = branch.TenantDbHost;
                 changed = true;
@@ -81,9 +81,9 @@ public class DatabaseSeeder(
                 missing.Count, string.Join(", ", missing.Select(h => h.Id)));
     }
 
-    private static Hospital CreateHospital(DatabaseEndpoint endpoint)
+    private Hospital CreateHospital(KeyValuePair<string, string> tenant)
     {
-        var id = endpoint.HospitalId!;
+        var id = tenant.Value;
         var hospital = id switch
         {
             "PT1" => new Hospital
@@ -108,12 +108,12 @@ public class DatabaseSeeder(
                 Id = id,
                 HospitalNameTh = id,
                 HospitalNameEn = id,
-                ShortName = endpoint.ConnectionKey,
+                ShortName = tenant.Key,
             },
         };
 
-        hospital.TenantDbName = endpoint.DatabaseName;
-        hospital.TenantDbHost = endpoint.Host;
+        hospital.TenantDbName = config[$"Api:Tenants:{tenant.Key}:DatabaseName"];
+        hospital.TenantDbHost = config[$"Api:Tenants:{tenant.Key}:Host"];
         return hospital;
     }
 
@@ -311,8 +311,7 @@ public class DatabaseSeeder(
             if (string.IsNullOrWhiteSpace(password))
             {
                 log.LogWarning(
-                    "No admin user created: set Seed:AdminPassword (appsettings.local.json " +
-                    "or the Seed__AdminPassword environment variable) and run the seeder again.");
+                    "No admin user created: set SEED_ADMIN_PASSWORD in apps/api/.env and run the seeder again.");
                 return;
             }
 

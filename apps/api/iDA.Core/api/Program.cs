@@ -6,10 +6,12 @@ using System.Text.Json;
 var builder = WebApplication.CreateBuilder(args);
 builder.ConfigureIdaApi(args, DatabaseRuntime.Core);
 
-if (args.Contains("--list-tenant-databases"))
+if (args.Contains("--describe-database"))
 {
     using var registry = new DatabaseRegistry(builder.Configuration, DatabaseRuntime.Management);
-    Console.WriteLine(JsonSerializer.Serialize(await registry.ListBranchesAsync(administrator: true), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+    _ = registry.ConnectionString(registry.Core);
+    _ = registry.ConnectionString(registry.Core, administrator: true);
+    Console.WriteLine(JsonSerializer.Serialize(registry.Core, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     return;
 }
 
@@ -17,7 +19,7 @@ if (args.Contains("--migrate-databases"))
 {
     using var registry = new DatabaseRegistry(builder.Configuration, DatabaseRuntime.Management);
     await new DatabaseProvisioner(registry).InitializeAsync();
-    Console.WriteLine("Core schema and database registry are ready.");
+    Console.WriteLine("Core schema is ready.");
     return;
 }
 

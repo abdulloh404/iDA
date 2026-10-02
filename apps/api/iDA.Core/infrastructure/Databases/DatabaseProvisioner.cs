@@ -7,9 +7,9 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
+        if (registry.Runtime != DatabaseRuntime.Management) throw new InvalidOperationException("Core schema migration requires Management mode.");
         await using var connection = await registry.OpenAsync(registry.Core, ct, administrator: true);
         await using var transaction = await connection.BeginTransactionAsync(ct);
-        await registry.InitializeAsync(connection, transaction, ct);
         await ProvisionAsync(registry.Core, connection, transaction, ct);
         await transaction.CommitAsync(ct);
     }
@@ -22,12 +22,8 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
             registry.ConnectionString(endpoint, administrator: true));
 
         await EfSchemaProvisioner.ApplyAsync(context, connection, transaction, endpoint, ct);
-        var role = ProvisioningSql.Identifier(endpoint.Username);
-        await ProvisioningSql.ExecuteAsync(connection, transaction, $"GRANT USAGE ON SCHEMA branch TO {role}; GRANT SELECT ON branch.database_connections TO {role};", ct);
         await CoreRuntimeProvisioner.GrantRuntimeAsync(context, connection, transaction, endpoint, ct);
         await new CoreIngestSchemaProvisioner().ApplyAsync(connection, transaction, endpoint, ct);
-
-        await ProvisioningSql.ExecuteAsync(connection, transaction, "DROP SCHEMA IF EXISTS public RESTRICT;", ct);
     }
 
     private async Task EnsureRuntimeRoleAsync(

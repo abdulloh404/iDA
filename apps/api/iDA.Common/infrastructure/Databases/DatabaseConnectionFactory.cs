@@ -29,7 +29,7 @@ public sealed class DatabaseConnectionFactory(IConfiguration configuration) : ID
         {
             var explicitConnection = new NpgsqlConnectionStringBuilder(explicitValue);
             if (explicitConnection.Host != endpoint.Host || explicitConnection.Port != endpoint.Port || explicitConnection.Database != endpoint.DatabaseName || (!administrator && explicitConnection.Username != endpoint.Username))
-                throw new InvalidOperationException($"ConnectionStrings:{connectionName} must identify the registered database and runtime user for {endpoint.ConnectionKey}.");
+                throw new InvalidOperationException($"ConnectionStrings:{connectionName} must identify the configured database and runtime user for {endpoint.ConnectionKey}.");
             if (string.IsNullOrEmpty(explicitConnection.Password))
                 explicitConnection.Password = configuration[administrator ? $"{endpoint.ConnectionKey}_DB_ADMIN_PASSWORD" : endpoint.PasswordEnvironment];
             if (string.IsNullOrEmpty(explicitConnection.Password))
@@ -52,7 +52,7 @@ public sealed class DatabaseConnectionFactory(IConfiguration configuration) : ID
             {
                 var explicitAdmin = new NpgsqlConnectionStringBuilder(admin);
                 if (explicitAdmin.Host != endpoint.Host || explicitAdmin.Port != endpoint.Port || explicitAdmin.Database != endpoint.DatabaseName)
-                    throw new InvalidOperationException($"{endpoint.ConnectionKey}_DB_ADMIN_CONNECTION must identify the same database as the registered endpoint.");
+                    throw new InvalidOperationException($"{endpoint.ConnectionKey}_DB_ADMIN_CONNECTION must identify the same database as the configured endpoint.");
                 explicitAdmin.SearchPath = SearchPath(endpoint);
                 return explicitAdmin.ConnectionString;
             }
@@ -113,7 +113,7 @@ public sealed class DatabaseConnectionFactory(IConfiguration configuration) : ID
         if (string.IsNullOrWhiteSpace(endpoint.Host) || string.IsNullOrWhiteSpace(endpoint.DatabaseName) || string.IsNullOrWhiteSpace(endpoint.Username)) throw new InvalidOperationException($"Host, database and username are required for {endpoint.ConnectionKey}.");
         if (endpoint.Port is < 1 or > 65535) throw new InvalidOperationException($"Invalid port for {endpoint.ConnectionKey}.");
         if (!Regex.IsMatch(endpoint.SchemaName, "^[a-z_][a-z0-9_]{0,62}$")) throw new InvalidOperationException($"Invalid schema name for {endpoint.ConnectionKey}.");
-        if (endpoint.SchemaName is "branch" or "registry" or "pg_catalog" or "information_schema" or "public" || endpoint.SchemaName.StartsWith("pg_", StringComparison.Ordinal)) throw new InvalidOperationException($"Reserved schema name for {endpoint.ConnectionKey}.");
+        if (endpoint.SchemaName is "pg_catalog" or "information_schema" or "public" || endpoint.SchemaName.StartsWith("pg_", StringComparison.Ordinal)) throw new InvalidOperationException($"Reserved schema name for {endpoint.ConnectionKey}.");
         if (endpoint.Kind == "bu" && (string.IsNullOrWhiteSpace(endpoint.HospitalId) || endpoint.HospitalId.Length > 20)) throw new InvalidOperationException($"A hospital ID of at most 20 characters is required for {endpoint.ConnectionKey}.");
         if (!Regex.IsMatch(endpoint.PasswordEnvironment, "^[A-Z][A-Z0-9_]*$")) throw new InvalidOperationException($"Invalid password environment name for {endpoint.ConnectionKey}.");
     }
