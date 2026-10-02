@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { readWebSettings, webApiProxyPattern } from '../../tools/start-web.mjs';
+import { readWebSettings, webApiProxyPattern } from './web-settings.mjs';
 
 export default defineConfig(({ mode }) => {
   const { hostname, port, routes } = readWebSettings(mode === 'production' ? 'Production' : 'Local');

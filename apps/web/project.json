@@ -27,9 +27,9 @@
         "production",
         "^production",
         "{workspaceRoot}/tsconfig.base.json",
-        "{workspaceRoot}/tools/start-web.mjs",
+        "{projectRoot}/web-settings.mjs",
         {
-          "runtime": "node --input-type=module -e \"import { readWebSettings } from './tools/start-web.mjs'; console.log(JSON.stringify(readWebSettings()));\""
+          "runtime": "node --input-type=module -e \"import { readWebSettings } from './apps/web/web-settings.mjs'; console.log(JSON.stringify(readWebSettings()));\""
         }
       ],
       "options": {
