@@ -13,6 +13,27 @@
     "type:backend"
   ],
   "targets": {
+    "dev": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "options": {
+        "command": "node tools/start-api.mjs dev",
+        "cwd": "."
+      }
+    },
+    "start": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "continuous": true,
+      "dependsOn": [
+        "build"
+      ],
+      "options": {
+        "command": "node tools/start-api.mjs start",
+        "cwd": "."
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "inputs": [

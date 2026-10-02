@@ -7,14 +7,15 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
 {
     public async Task InitializeAsync(CancellationToken ct = default)
     {
-        await registry.InitializeAsync(ct);
-        await ProvisionAsync(registry.Core, ct);
+        await using var connection = await registry.OpenAsync(registry.Core, ct, administrator: true);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await registry.InitializeAsync(connection, transaction, ct);
+        await ProvisionAsync(registry.Core, connection, transaction, ct);
+        await transaction.CommitAsync(ct);
     }
 
-    private async Task ProvisionAsync(DatabaseEndpoint endpoint, CancellationToken ct)
+    private async Task ProvisionAsync(DatabaseEndpoint endpoint, NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken ct)
     {
-        await using var connection = await registry.OpenAsync(endpoint, ct, administrator: true);
-        await using var transaction = await connection.BeginTransactionAsync(ct);
         await EnsureRuntimeRoleAsync(connection, transaction, endpoint, ct);
         await using var context = DatabaseContexts.CreateSchemaContext(
             endpoint,
@@ -27,7 +28,6 @@ public sealed class DatabaseProvisioner(DatabaseRegistry registry)
         await new CoreIngestSchemaProvisioner().ApplyAsync(connection, transaction, endpoint, ct);
 
         await ProvisioningSql.ExecuteAsync(connection, transaction, "DROP SCHEMA IF EXISTS public RESTRICT;", ct);
-        await transaction.CommitAsync(ct);
     }
 
     private async Task EnsureRuntimeRoleAsync(

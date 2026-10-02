@@ -50,6 +50,16 @@ public sealed class DatabaseRegistry : IDisposable
     public async Task<IReadOnlyList<DatabaseEndpoint>> InitializeAsync(CancellationToken ct = default)
     {
         if (Runtime != DatabaseRuntime.Management) throw new InvalidOperationException("Database registry migration requires Management mode.");
+        await using var connection = await OpenAsync(Core, ct, administrator: true);
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+        var endpoints = await InitializeAsync(connection, transaction, ct);
+        await transaction.CommitAsync(ct);
+        return endpoints;
+    }
+
+    internal async Task<IReadOnlyList<DatabaseEndpoint>> InitializeAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken ct)
+    {
+        if (Runtime != DatabaseRuntime.Management) throw new InvalidOperationException("Database registry migration requires Management mode.");
         var endpoints = new List<DatabaseEndpoint> { Core };
         var branchKeys = configuration.AsEnumerable()
             .Where(pair => Regex.IsMatch(pair.Key, "^(BU[0-9]+_DB_CONNECTION|ConnectionStrings:BU[0-9]+)$", RegexOptions.IgnoreCase))
@@ -68,8 +78,6 @@ public sealed class DatabaseRegistry : IDisposable
             if (endpoints.Any(other => other.HospitalId == endpoint.HospitalId)) throw new InvalidOperationException($"Duplicate hospital ID for {connectionKey}.");
             endpoints.Add(endpoint);
         }
-        await using var connection = await OpenAsync(Core, ct, administrator: true);
-        await using var transaction = await connection.BeginTransactionAsync(ct);
         await using (var command = new NpgsqlCommand("""
             DO $$
             BEGIN
@@ -159,7 +167,6 @@ public sealed class DatabaseRegistry : IDisposable
             command.Parameters.AddWithValue(endpoint.SslMode);
             await command.ExecuteNonQueryAsync(ct);
         }
-        await transaction.CommitAsync(ct);
         return endpoints;
     }
 
