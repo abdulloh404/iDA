@@ -1,0 +1,17 @@
+**
+!iDA.Common/
+!iDA.Common/**
+!iDA.Core/
+!iDA.Core/**
+!iDA.Tanent/
+!iDA.Tanent/**
+!IDA.Ingest-worker/
+!IDA.Ingest-worker/**
+**/bin
+**/obj
+**/appsettings*.json
+**/.env*
+**/*.secret.env
+**/.git
+**/Properties/launchSettings.json
+**/*.png

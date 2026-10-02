@@ -45,7 +45,8 @@ public static class CommonApiSetup
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-            foreach (var value in configuration.GetSection("Api:KnownProxies").Get<string[]>() ?? [])
+            var knownProxies = configuration["API_KNOWN_PROXIES"]?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? configuration.GetSection("Api:KnownProxies").Get<string[]>() ?? [];
+            foreach (var value in knownProxies)
             {
                 if (!IPAddress.TryParse(value, out var address)) throw new InvalidOperationException("Api:KnownProxies must contain IP addresses.");
                 options.KnownProxies.Add(address);
@@ -74,7 +75,7 @@ public static class CommonApiSetup
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 
-        var origins = configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+        var origins = configuration["CORS_ORIGINS"]?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
         services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>

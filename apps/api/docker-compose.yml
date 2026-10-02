@@ -1,0 +1,139 @@
+name: ida-api
+
+x-runtime: &runtime
+  init: true
+  restart: unless-stopped
+
+x-environment: &environment
+  DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Local}
+  ASPNETCORE_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Local}
+  IDA_START_SETTINGS: '{}'
+  Logging__LogLevel__Default: ${LOG_LEVEL_DEFAULT:-Information}
+  Logging__LogLevel__Microsoft.AspNetCore: ${LOG_LEVEL_MICROSOFT_ASPNETCORE:-Warning}
+
+x-api-environment: &api-environment
+  <<: *environment
+  ASPNETCORE_URLS: http://0.0.0.0:3100
+  Api__Urls: http://0.0.0.0:3100
+  API_KNOWN_PROXIES: ${API_KNOWN_PROXIES:-}
+  CORS_ORIGINS: ${CORS_ORIGINS:-}
+  AllowedHosts: ${ALLOWED_HOSTS:-*}
+  Jwt__Key: ${JWT_KEY:?Set JWT_KEY in root .env}
+  Jwt__Issuer: ${JWT_ISSUER:?Set JWT_ISSUER in root .env}
+  Jwt__Audience: ${JWT_AUDIENCE:?Set JWT_AUDIENCE in root .env}
+  Jwt__LifetimeHours: ${JWT_LIFETIME_HOURS:-8}
+  Security__DataProtectionKey: ${SECURITY_DATA_PROTECTION_KEY:?Set SECURITY_DATA_PROTECTION_KEY in root .env}
+  Security__HashSalt: ${SECURITY_HASH_SALT:?Set SECURITY_HASH_SALT in root .env}
+
+x-core-client: &core-client
+  Api__Core__Url: http://core-api:3100
+  Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
+  Api__Core__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in root .env}
+
+services:
+  core-api:
+    <<: *runtime
+    image: ida-api-core:local
+    build:
+      context: .
+      target: core
+    environment:
+      <<: *api-environment
+      Api__Mode: Core
+      Api__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
+      Api__Core__Url: http://core-api:3100
+      Api__Core__PathBase: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
+      Api__ServiceKey: ${API_SERVICE_KEY:?Set API_SERVICE_KEY in root .env}
+      Api__Tenants__BU01__Url: http://tenant-bu01:3100
+      Api__Tenants__BU01__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
+      Api__Tenants__BU01__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in root .env}
+      Api__Tenants__BU02__Url: http://tenant-bu02:3100
+      Api__Tenants__BU02__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
+      Api__Tenants__BU02__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in root .env}
+      ConnectionStrings__Core: ${CORE_CONNECTION:?Set CORE_CONNECTION in root .env}
+      ConnectionStrings__CoreMigration: ${CORE_MIGRATION_CONNECTION:?Set CORE_MIGRATION_CONNECTION in root .env}
+    networks: [core, bu01, bu02]
+
+  tenant-bu01:
+    <<: *runtime
+    image: ida-api-tenant:local
+    build:
+      context: .
+      target: tenant
+    environment:
+      <<: [*api-environment, *core-client]
+      Api__Mode: Tenant
+      Api__BuId: BU01
+      Api__PathBase: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
+      Api__ServiceKey: ${BU01_SERVICE_KEY:?Set BU01_SERVICE_KEY in root .env}
+      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in root .env}
+      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in root .env}
+    depends_on: [core-api]
+    networks: [bu01]
+
+  ingest-bu01:
+    <<: *runtime
+    image: ida-api-ingest:local
+    build:
+      context: .
+      target: ingest
+    environment:
+      <<: [*environment, *core-client]
+      BU_ID: BU01
+      Api__ServiceKey: ${BU01_INGEST_SERVICE_KEY:?Set BU01_INGEST_SERVICE_KEY in root .env}
+      ConnectionStrings__Tenant: ${BU01_CONNECTION:?Set BU01_CONNECTION in root .env}
+      ConnectionStrings__TenantMigration: ${BU01_MIGRATION_CONNECTION:?Set BU01_MIGRATION_CONNECTION in root .env}
+    depends_on: [core-api]
+    networks: [bu01]
+
+  tenant-bu02:
+    <<: *runtime
+    image: ida-api-tenant:local
+    build:
+      context: .
+      target: tenant
+    environment:
+      <<: [*api-environment, *core-client]
+      Api__Mode: Tenant
+      Api__BuId: BU02
+      Api__PathBase: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
+      Api__ServiceKey: ${BU02_SERVICE_KEY:?Set BU02_SERVICE_KEY in root .env}
+      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in root .env}
+      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in root .env}
+    depends_on: [core-api]
+    networks: [bu02]
+
+  ingest-bu02:
+    <<: *runtime
+    image: ida-api-ingest:local
+    build:
+      context: .
+      target: ingest
+    environment:
+      <<: [*environment, *core-client]
+      BU_ID: BU02
+      Api__ServiceKey: ${BU02_INGEST_SERVICE_KEY:?Set BU02_INGEST_SERVICE_KEY in root .env}
+      ConnectionStrings__Tenant: ${BU02_CONNECTION:?Set BU02_CONNECTION in root .env}
+      ConnectionStrings__TenantMigration: ${BU02_MIGRATION_CONNECTION:?Set BU02_MIGRATION_CONNECTION in root .env}
+    depends_on: [core-api]
+    networks: [bu02]
+
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    ports:
+      - '3100:3100'
+    environment:
+      CORE_API_PATH_BASE: ${CORE_API_PATH_BASE:?Set CORE_API_PATH_BASE in root .env}
+      BU01_API_PATH_BASE: ${BU01_API_PATH_BASE:?Set BU01_API_PATH_BASE in root .env}
+      BU02_API_PATH_BASE: ${BU02_API_PATH_BASE:?Set BU02_API_PATH_BASE in root .env}
+      NGINX_ENVSUBST_FILTER: '^(CORE_API_PATH_BASE|BU01_API_PATH_BASE|BU02_API_PATH_BASE)$$'
+    volumes:
+      - ./nginx.conf:/etc/nginx/templates/default.conf.template:ro
+    depends_on: [core-api, tenant-bu01, tenant-bu02]
+    networks: [core, bu01, bu02]
+
+networks:
+  core:
+  bu01:
+  bu02:

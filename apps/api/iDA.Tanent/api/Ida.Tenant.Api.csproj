@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\iDA.Common\api\Ida.Common.Api.csproj" />
     <ProjectReference Include="..\infrastructure\Ida.Tenant.Infrastructure.csproj" />
+    <Content Update="project.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
     <Content Update="appsettings*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="appsettings.local.json" CopyToPublishDirectory="Never" />
   </ItemGroup>
